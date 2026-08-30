@@ -111,10 +111,10 @@ diese Verzeichnisse als Bibliotheken einliest. Die tatsächlichen Zielordner wer
 **Über den Modulmanager (empfohlen, wenn der Store unterstützt wird):**
 Den enthaltenen Ordner `module-store` zusammen mit dem Projekt in dein
 öffentliches Repository hochladen. Unter **Weitere Repositories** diese URL
-eintragen, mit deinem GitHub-Namen, Repository-Namen und Branch:
+eintragen:
 
 ```text
-https://raw.githubusercontent.com/DEIN-GITHUB-NAME/DEIN-REPOSITORY/main/module-store/index.json
+https://raw.githubusercontent.com/Marshmello0w/Mediaforge-Jellyfin-Connector/main/module-store/index.json
 ```
 
 Speichern, den Store aktualisieren und **Jellyfin Connector** installieren oder
@@ -169,14 +169,14 @@ Alternativ kann nach Veröffentlichung einer Version das Jellyfin-Repository ver
 
 ```text
 Name: MediaForge Requests
-URL:  https://DEIN-GITHUB-NAME.github.io/DEIN-REPOSITORY/manifest.json
+URL:  https://marshmello0w.github.io/Mediaforge-Jellyfin-Connector/manifest.json
 ```
 
 Das Repository in Jellyfin unter **Dashboard → Plugins → Repositories** eintragen,
 das Plugin aus dem Katalog installieren und Jellyfin neu starten. Welche Version
 der Feed anbietet, hängt vom zuletzt erfolgreich veröffentlichten Release ab.
 
-Die Platzhalter durch dein eigenes Repository ersetzen. Dies ist der
+Dies ist der
 **Jellyfin-Feed** und nicht der MediaForge-Modulkatalog. Der Feed existiert
 erst nach einem erfolgreichen Release mit GitHub-Pages-Deployment.
 
@@ -250,11 +250,12 @@ Zusätzlich wird `module-store` mit `index.json`, `index-all.json` und dem
 Nur den Modulkatalog ohne .NET-Build neu erzeugen:
 
 ```powershell
-.\scripts\generate-module-store.ps1 -RepositorySlug DEIN-GITHUB-NAME/DEIN-REPOSITORY
+.\scripts\generate-module-store.ps1 -RepositorySlug Marshmello0w/Mediaforge-Jellyfin-Connector
 ```
 
-Ohne `-RepositorySlug` bleiben optionale Quellcode-/Homepage-Links leer;
-im Release-Workflow wird automatisch das tatsächliche GitHub-Repository verwendet.
+Ohne `-RepositorySlug` wird lokal `Marshmello0w/Mediaforge-Jellyfin-Connector`
+verwendet. Im Release-Workflow wird automatisch das tatsächliche GitHub-Repository
+verwendet; bei einem weiteren Fork kann der Parameter die Adresse überschreiben.
 
 Die Tests und Metadatenprüfung lassen sich separat ausführen:
 
@@ -284,7 +285,7 @@ Deployment-Regeln der Umgebung `github-pages` müssen Versionstags `v*` zulassen
 Nach erfolgreicher Veröffentlichung liegt der Feed unter:
 
 ```text
-https://DEIN-GITHUB-NAME.github.io/DEIN-REPOSITORY/manifest.json
+https://marshmello0w.github.io/Mediaforge-Jellyfin-Connector/manifest.json
 ```
 
 Erst den geprüften Quellstand committen und pushen. Anschließend kann die Version
