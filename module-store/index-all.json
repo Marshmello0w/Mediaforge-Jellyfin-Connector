@@ -1,0 +1,30 @@
+{
+  "store_api": 1,
+  "name": "MediaForge Jellyfin Connector",
+  "modules": [
+    {
+      "id": "mediaforge_jellyfin_connector",
+      "folder": "mediaforge_jellyfin_connector",
+      "type": "module",
+      "name": "Jellyfin Connector",
+      "version": "0.5.0",
+      "author": "MediaForge Jellyfin Connector contributors",
+      "trust": "unverified",
+      "description": {
+        "de": "Jellyfin-Anfragen, sichere Downloadübergaben und Autosync nach Serienfreigabe.",
+        "en": "Jellyfin requests, durable download handoffs and AutoSync after series approval."
+      },
+      "api_version": 1,
+      "min_app_version": "1.5.0",
+      "max_app_version": "1.6.999",
+      "requirements": [],
+      "homepage": "",
+      "repo_url": "",
+      "source_url": "",
+      "license": "GPL-3.0-or-later",
+      "download_url": "packages/mediaforge_jellyfin_connector-0.5.0.mfmod",
+      "sha256": "be3aa823fab2002bfe31c76b3c24a7f16fac4ebc9fba727221ada1242c558081",
+      "size": 10297
+    }
+  ]
+}

@@ -61,6 +61,7 @@ Das Projekt besteht aus einem Jellyfin-Plugin und einem MediaForge-Modul.
 .github/workflows/release.yml       Tests, Release-Pakete und Jellyfin-Repository
 Jellyfin.Plugin.MediaForge/         Jellyfin-Plugin, Oberfläche und Anwendungslogik
 MediaForge.Module/                  MediaForge-Modul und Installationshinweise
+module-store/                      Modulkatalog und installierbares .mfmod-Paket
 Tests/                             Python- und .NET-Sicherheits-/Workflowtests
 scripts/                           Build, Versionspflege und Release-Prüfung
 docs/WORKFLOW.md                    Migration, Wiederherstellung und API-Details
@@ -81,9 +82,10 @@ version.json                       Gemeinsame Versionsinformationen
    Release-Workflow startet erst bei einem gepushten Versionstag wie `v0.5.0`.
 
 Der Upload-Ordner enthält Quellcode, Tests und Dokumentation. `.git`, lokale SDKs,
-Caches, `bin`, `obj` und erzeugte Installationspakete sind nicht enthalten.
-Installationspakete gehören in die GitHub-Release-Anhänge und werden durch den
-Build beziehungsweise den Release-Workflow erzeugt.
+Caches, `bin` und `obj` sind nicht enthalten. Die ZIP-Installationspakete werden
+durch den Build beziehungsweise Release-Workflow erzeugt. Eine bewusste Ausnahme
+ist das kleine `.mfmod`-Paket im Ordner `module-store`: Es wird mit hochgeladen,
+damit MediaForge es direkt über den Modulkatalog installieren kann.
 
 ## Voraussetzungen
 
@@ -105,6 +107,28 @@ diese Verzeichnisse als Bibliotheken einliest. Die tatsächlichen Zielordner wer
 ## Installation und Update
 
 ### 1. MediaForge-Modul installieren
+
+**Über den Modulmanager (empfohlen, wenn der Store unterstützt wird):**
+Den enthaltenen Ordner `module-store` zusammen mit dem Projekt in dein
+öffentliches Repository hochladen. Unter **Weitere Repositories** diese URL
+eintragen, mit deinem GitHub-Namen, Repository-Namen und Branch:
+
+```text
+https://raw.githubusercontent.com/DEIN-GITHUB-NAME/DEIN-REPOSITORY/main/module-store/index.json
+```
+
+Speichern, den Store aktualisieren und **Jellyfin Connector** installieren oder
+aktualisieren. Da das Paket keine Signatur der MediaForge-Maintainer besitzt,
+muss die Installation unverifizierter Module ausdrücklich erlaubt werden –
+nur aktivieren, wenn du dem Quellcode vertraust. Danach MediaForge neu starten.
+Der Link funktioniert erst, wenn der Ordner tatsächlich hochgeladen wurde.
+GitHub Pages und ein Release sind für diesen Raw-Link nicht erforderlich.
+
+Version 0.5.0 ist neuer als 0.4.3. Ist bereits 0.5.0 installiert, wird diese
+Version nicht nochmals als neueres Update angeboten. Versionsnummern des
+Moduls und des Katalogs müssen zusammenpassen. Details: [Modulkatalog](module-store/README.md).
+
+**Alternativ manuell, auch ohne Store:**
 
 Den Ordner `MediaForge.Module/mediaforge_jellyfin_connector` oder den gleichnamigen
 Ordner aus dem Modul-ZIP nach folgendem Ziel kopieren:
@@ -145,12 +169,16 @@ Alternativ kann nach Veröffentlichung einer Version das Jellyfin-Repository ver
 
 ```text
 Name: MediaForge Requests
-URL:  https://daseric.github.io/Mediaforge-Jellyfin-Connector/manifest.json
+URL:  https://DEIN-GITHUB-NAME.github.io/DEIN-REPOSITORY/manifest.json
 ```
 
 Das Repository in Jellyfin unter **Dashboard → Plugins → Repositories** eintragen,
 das Plugin aus dem Katalog installieren und Jellyfin neu starten. Welche Version
 der Feed anbietet, hängt vom zuletzt erfolgreich veröffentlichten Release ab.
+
+Die Platzhalter durch dein eigenes Repository ersetzen. Dies ist der
+**Jellyfin-Feed** und nicht der MediaForge-Modulkatalog. Der Feed existiert
+erst nach einem erfolgreichen Release mit GitHub-Pages-Deployment.
 
 ### 3. Verbindung und Benutzerzugriff konfigurieren
 
@@ -216,6 +244,17 @@ dist/MediaForgeRequests_0.5.0.zip
 dist/mediaforge_jellyfin_connector_0.5.0.zip
 dist/SHA256SUMS.txt
 ```
+
+Zusätzlich wird `module-store` mit `index.json`, `index-all.json` und dem
+`.mfmod`-Paket aktualisiert. Alle Dateien dieses Ordners gemeinsam hochladen.
+Nur den Modulkatalog ohne .NET-Build neu erzeugen:
+
+```powershell
+.\scripts\generate-module-store.ps1 -RepositorySlug DEIN-GITHUB-NAME/DEIN-REPOSITORY
+```
+
+Ohne `-RepositorySlug` bleiben optionale Quellcode-/Homepage-Links leer;
+im Release-Workflow wird automatisch das tatsächliche GitHub-Repository verwendet.
 
 Die Tests und Metadatenprüfung lassen sich separat ausführen:
 

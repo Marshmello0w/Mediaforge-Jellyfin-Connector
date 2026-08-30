@@ -72,3 +72,5 @@ Write-Output "Created $pluginDll"
 Write-Output "Created $pluginZip"
 Write-Output "Created $moduleZip"
 Write-Output "Created $(Join-Path $dist 'SHA256SUMS.txt')"
+
+& (Join-Path $PSScriptRoot "generate-module-store.ps1")

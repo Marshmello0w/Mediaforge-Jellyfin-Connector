@@ -61,6 +61,10 @@ $manifestPath = Join-Path $repositoryDirectory "manifest.json"
 $json = ConvertTo-Json -InputObject $manifest -Depth 8
 [IO.File]::WriteAllText($manifestPath, $json + [Environment]::NewLine, [Text.UTF8Encoding]::new($false))
 Write-Output "Created $manifestPath"
+& (Join-Path $PSScriptRoot "generate-module-store.ps1") -RepositorySlug $RepositorySlug
+$moduleStoreTarget = Join-Path $repositoryDirectory "module-store"
+New-Item -ItemType Directory -Force -Path $moduleStoreTarget | Out-Null
+Copy-Item -Path (Join-Path $projectRoot "module-store/*") -Destination $moduleStoreTarget -Recurse -Force
 $owner, $repositoryName = $RepositorySlug.Split('/')
 $pagesPath = if ($repositoryName -ieq "$owner.github.io") { "" } else { "/$repositoryName" }
 Write-Output "Jellyfin repository URL after GitHub Pages deployment: https://$owner.github.io$pagesPath/manifest.json"

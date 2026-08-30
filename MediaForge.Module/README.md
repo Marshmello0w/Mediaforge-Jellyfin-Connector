@@ -17,6 +17,19 @@ proxy; the connector keeps a scoped compatibility route for MediaForge 1.5.
 
 ## Installation
 
+For installation through **Additional repositories / Weitere Repositories**,
+upload the root `module-store` folder with the project and use your own URL:
+
+```text
+https://raw.githubusercontent.com/YOUR-GITHUB-USERNAME/YOUR-REPOSITORY/main/module-store/index.json
+```
+
+Allow unverified modules only if you trust this source, refresh the store,
+install/update **Jellyfin Connector**, then restart MediaForge. The package is
+unsigned; its SHA-256 checksum does not confer a verified signature. Both
+`index.json` and `index-all.json` are supplied. See the [store guide](../module-store/README.md).
+The following manual procedure remains available without store support:
+
 1. Copy the `mediaforge_jellyfin_connector` directory to
    `~/.mediaforge/thirdparties/mediaforge_jellyfin_connector`.
 2. Restart MediaForge.
