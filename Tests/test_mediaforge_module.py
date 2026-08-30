@@ -29,7 +29,7 @@ def _load_routes_module(*, modern: bool = True):
         "mediaforge.web",
         "mediaforge.web.routes",
         "mediaforge.web.thirdparties",
-        "mediaforge.web.thirdparties.mediaforge_jellyfin_connector",
+        "mediaforge.web.thirdparties.marshmello_jellyfin_connector",
         "mediaforge.mirrors",
         "mediaforge.models",
         "mediaforge.models.common",
@@ -116,10 +116,10 @@ def _load_routes_module(*, modern: bool = True):
     path = (
         Path(__file__).parents[1]
         / "MediaForge.Module"
-        / "mediaforge_jellyfin_connector"
+        / "marshmello_jellyfin_connector"
         / "routes.py"
     )
-    name = "mediaforge.web.thirdparties.mediaforge_jellyfin_connector.routes"
+    name = "mediaforge.web.thirdparties.marshmello_jellyfin_connector.routes"
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
@@ -159,11 +159,11 @@ def _load_connector_package(*, modern: bool = True):
     sys.modules[registry.__name__] = registry
 
     routes = types.ModuleType(
-        "mediaforge.web.thirdparties.mediaforge_jellyfin_connector.routes"
+        "mediaforge.web.thirdparties.marshmello_jellyfin_connector.routes"
     )
     routes.create_blueprint = lambda _app, _key, _version: (
         object(),
-        {"mediaforge_jellyfin_connector.connector_health": "status:read"},
+        {"marshmello_jellyfin_connector.connector_health": "status:read"},
     )
     sys.modules[routes.__name__] = routes
 
@@ -178,10 +178,10 @@ def _load_connector_package(*, modern: bool = True):
     path = (
         Path(__file__).parents[1]
         / "MediaForge.Module"
-        / "mediaforge_jellyfin_connector"
+        / "marshmello_jellyfin_connector"
         / "__init__.py"
     )
-    name = "mediaforge.web.thirdparties.mediaforge_jellyfin_connector"
+    name = "mediaforge.web.thirdparties.marshmello_jellyfin_connector"
     spec = importlib.util.spec_from_file_location(
         name,
         path,
@@ -314,14 +314,14 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
         return handler
 
     def test_authentication_is_required(self):
-        response = self.client.get("/api/v1/connector/sources")
+        response = self.client.get("/api/v1/marshmello-connector/sources")
         self.assertEqual(401, response.status_code)
         self.assertEqual("unauthorized", response.get_json()["error"])
         self.assertEqual([], self.calls)
 
     def test_valid_api_key_does_not_require_a_mediaforge_web_session(self):
         response = self.client.get(
-            "/api/v1/connector/health",
+            "/api/v1/marshmello-connector/health",
             headers={"X-Api-Key": "status:read-key"},
         )
         self.assertEqual(200, response.status_code)
@@ -334,7 +334,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
 
     def test_discovery_does_not_require_a_mediaforge_web_session(self):
         response = self.client.get(
-            "/api/v1/connector/discover",
+            "/api/v1/marshmello-connector/discover",
             headers={"X-Api-Key": "library:read-key"},
         )
         self.assertEqual(200, response.status_code)
@@ -348,14 +348,14 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
 
     def test_sources_always_filter_adult_content_for_api_key_requests(self):
         headers = {"X-Api-Key": "library:read-key"}
-        response = self.client.get("/api/v1/connector/sources", headers=headers)
+        response = self.client.get("/api/v1/marshmello-connector/sources", headers=headers)
         self.assertEqual(200, response.status_code)
         self.assertEqual(["aniworld"], [item["id"] for item in response.get_json()["sources"]])
         self.assertEqual(["aniworld"], response.get_json()["order"])
 
     def test_search_rejects_a_disabled_source(self):
         response = self.client.post(
-            "/api/v1/connector/search",
+            "/api/v1/marshmello-connector/search",
             json={"keyword": "Example", "site": "disabled"},
             headers={"X-Api-Key": "library:read-key"},
         )
@@ -365,7 +365,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
 
     def test_sources_reject_client_controlled_adult_filter(self):
         response = self.client.get(
-            "/api/v1/connector/sources?include_adult=true",
+            "/api/v1/marshmello-connector/sources?include_adult=true",
             headers={"X-Api-Key": "library:read-key"},
         )
         self.assertEqual(400, response.status_code)
@@ -373,7 +373,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
     def test_search_blocks_adult_source_and_rejects_override(self):
         headers = {"X-Api-Key": "library:read-key"}
         response = self.client.post(
-            "/api/v1/connector/search",
+            "/api/v1/marshmello-connector/search",
             json={"keyword": "Example", "site": "hanime"},
             headers=headers,
         )
@@ -382,7 +382,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
 
         self.calls.clear()
         response = self.client.post(
-            "/api/v1/connector/search",
+            "/api/v1/marshmello-connector/search",
             json={"keyword": "Example", "site": "hanime", "include_adult": True},
             headers=headers,
         )
@@ -391,18 +391,18 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
 
     def test_image_proxy_requires_scope_and_rejects_non_http_urls(self):
         response = self.client.get(
-            "/api/v1/connector/image?url=https%3A%2F%2Fallowed.invalid%2Fposter.jpg"
+            "/api/v1/marshmello-connector/image?url=https%3A%2F%2Fallowed.invalid%2Fposter.jpg"
         )
         self.assertEqual(401, response.status_code)
 
         response = self.client.get(
-            "/api/v1/connector/image?url=file%3A%2F%2F%2Fetc%2Fpasswd",
+            "/api/v1/marshmello-connector/image?url=file%3A%2F%2F%2Fetc%2Fpasswd",
             headers={"X-Api-Key": "library:read-key"},
         )
         self.assertEqual(400, response.status_code)
 
         response = self.client.get(
-            "/api/v1/connector/image?url=https%3A%2F%2Fallowed.invalid%2Fposter.jpg",
+            "/api/v1/marshmello-connector/image?url=https%3A%2F%2Fallowed.invalid%2Fposter.jpg",
             headers={"X-Api-Key": "library:read-key"},
         )
         self.assertEqual(200, response.status_code)
@@ -410,7 +410,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
 
     def test_arbitrary_url_is_rejected_before_internal_handler(self):
         response = self.client.get(
-            "/api/v1/connector/series?url=http://127.0.0.1/admin",
+            "/api/v1/marshmello-connector/series?url=http://127.0.0.1/admin",
             headers={"X-Api-Key": "library:read-key"},
         )
         self.assertEqual(400, response.status_code)
@@ -418,7 +418,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
 
     def test_valid_media_url_reaches_internal_handler(self):
         response = self.client.get(
-            "/api/v1/connector/series?url=https://allowed.invalid/media/series",
+            "/api/v1/marshmello-connector/series?url=https://allowed.invalid/media/series",
             headers={"X-Api-Key": "library:read-key"},
         )
         self.assertEqual(200, response.status_code)
@@ -431,7 +431,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
 
     def test_search_posters_are_always_rewritten_to_mediaforge_proxy_paths(self):
         response = self.client.post(
-            "/api/v1/connector/search",
+            "/api/v1/marshmello-connector/search",
             json={"keyword": "Example", "site": "aniworld"},
             headers={"X-Api-Key": "library:read-key"},
         )
@@ -468,7 +468,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
 
     def test_episode_download_state_is_passed_through_without_provider_io(self):
         response = self.client.get(
-            "/api/v1/connector/episodes?url=https://allowed.invalid/media/movie",
+            "/api/v1/marshmello-connector/episodes?url=https://allowed.invalid/media/movie",
             headers={"X-Api-Key": "library:read-key"},
         )
         self.assertEqual(200, response.status_code)
@@ -493,21 +493,21 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
             "upscale": False,
         }
         response = self.client.post(
-            "/api/v1/connector/download",
+            "/api/v1/marshmello-connector/download",
             json={**base, "token": "must-not-be-accepted"},
             headers={"X-Api-Key": "queue:write-key"},
         )
         self.assertEqual(400, response.status_code)
 
         response = self.client.post(
-            "/api/v1/connector/download",
+            "/api/v1/marshmello-connector/download",
             json={**base, "custom_path_id": 999},
             headers={"X-Api-Key": "queue:write-key"},
         )
         self.assertEqual(400, response.status_code)
 
         response = self.client.post(
-            "/api/v1/connector/download",
+            "/api/v1/marshmello-connector/download",
             json={**base, "episodes": ["http://127.0.0.1/admin"]},
             headers={"X-Api-Key": "queue:write-key"},
         )
@@ -516,7 +516,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
 
     def test_valid_download_reaches_internal_handler(self):
         response = self.client.post(
-            "/api/v1/connector/download",
+            "/api/v1/marshmello-connector/download",
             json={
                 "episodes": [
                     "https://allowed.invalid/media/episode-1",
@@ -547,12 +547,12 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
             "upscale": False,
         }
         series_response = self.client.post(
-            "/api/v1/connector/download",
+            "/api/v1/marshmello-connector/download",
             json={**base, "series_url": "https://allowed.invalid/media/series"},
             headers=headers,
         )
         movie_response = self.client.post(
-            "/api/v1/connector/download",
+            "/api/v1/marshmello-connector/download",
             json={**base, "series_url": "https://allowed.invalid/media/movie"},
             headers=headers,
         )
@@ -565,7 +565,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
     def test_no_site_default_preserves_mediaforge_global_download_path(self):
         self.routes.site_for_url = lambda _url: "megakino"
         response = self.client.post(
-            "/api/v1/connector/download",
+            "/api/v1/marshmello-connector/download",
             json={
                 "episodes": ["https://allowed.invalid/media/episode-1"],
                 "language": "German Dub",
@@ -586,7 +586,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
             {"id": 22, "default_sites": "aniworld"},
         ]
         response = self.client.post(
-            "/api/v1/connector/download",
+            "/api/v1/marshmello-connector/download",
             json={
                 "episodes": ["https://allowed.invalid/media/episode-1"],
                 "language": "German Dub",
@@ -620,7 +620,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
                 self.download_bodies.clear()
                 self.routes.get_custom_paths = loader
                 response = self.client.post(
-                    "/api/v1/connector/download",
+                    "/api/v1/marshmello-connector/download",
                     json=body,
                     headers=headers,
                 )
@@ -635,7 +635,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
 
         self.routes.get_queue_item = unavailable
         response = self.client.post(
-            "/api/v1/connector/download",
+            "/api/v1/marshmello-connector/download",
             json={
                 "episodes": ["https://allowed.invalid/media/episode-1"],
                 "language": "German Dub",
@@ -651,7 +651,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
 
     def test_progress_is_scoped_and_contains_no_sensitive_queue_fields(self):
         response = self.client.post(
-            "/api/v1/connector/progress",
+            "/api/v1/marshmello-connector/progress",
             json={"queue_ids": [42]},
             headers={"X-Api-Key": "queue:read-key"},
         )
@@ -670,7 +670,7 @@ class ConnectorRouteSecurityTests(unittest.TestCase):
         headers = {"X-Api-Key": "queue:read-key"}
         for queue_ids in ([1, 1], [0], [True], ["1"]):
             response = self.client.post(
-                "/api/v1/connector/progress",
+                "/api/v1/marshmello-connector/progress",
                 json={"queue_ids": queue_ids},
                 headers=headers,
             )
@@ -695,18 +695,18 @@ class ConnectorRegistrationTests(unittest.TestCase):
         self.assertEqual("1.6.999", module.MODULE_MAX_APP_VERSION)
         self.assertEqual(1, len(app.blueprints))
         self.assertEqual(1, len(registrations))
-        self.assertEqual("mediaforge_jellyfin_connector", registrations[0]["item_id"])
+        self.assertEqual("marshmello_jellyfin_connector", registrations[0]["item_id"])
         self.assertEqual("settings", registrations[0]["settings_host"])
-        self.assertEqual("mediaforge_jellyfin_connector", registrations[0]["blueprint"])
-        self.assertEqual("module:mediaforge_jellyfin_connector:enabled", registrations[0]["enabled_setting_key"])
+        self.assertEqual("marshmello_jellyfin_connector", registrations[0]["blueprint"])
+        self.assertEqual("module:marshmello_jellyfin_connector:enabled", registrations[0]["enabled_setting_key"])
         self.assertEqual(1, len(scope_registrations))
-        self.assertEqual("mediaforge_jellyfin_connector", scope_registrations[0][0])
+        self.assertEqual("marshmello_jellyfin_connector", scope_registrations[0][0])
         self.assertEqual(
-            {"mediaforge_jellyfin_connector.connector_health": "status:read"},
+            {"marshmello_jellyfin_connector.connector_health": "status:read"},
             scope_registrations[0][1],
         )
         self.assertEqual(
-            {"blueprint": "mediaforge_jellyfin_connector"},
+            {"blueprint": "marshmello_jellyfin_connector"},
             scope_registrations[0][2],
         )
 
@@ -722,7 +722,7 @@ class ConnectorRegistrationTests(unittest.TestCase):
         module.register(FakeApp())
         self.assertEqual([], scope_registrations)
         self.assertEqual(
-            {"mediaforge_jellyfin_connector.connector_health": "status:read"},
+            {"marshmello_jellyfin_connector.connector_health": "status:read"},
             legacy_scopes,
         )
         self.assertNotIn("blueprint", registrations[0])

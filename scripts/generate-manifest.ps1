@@ -34,6 +34,7 @@ if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
 
 $checksum = (Get-FileHash -LiteralPath $archivePath -Algorithm MD5).Hash.ToUpperInvariant()
 $sourceUrl = "https://github.com/$RepositorySlug/releases/download/$ReleaseTag/$archiveName"
+$pluginMetadata = Get-Content -LiteralPath (Join-Path $projectRoot "Jellyfin.Plugin.MediaForge/meta.json") -Raw -Encoding UTF8 | ConvertFrom-Json
 $manifest = @(
     [ordered]@{
         guid = "2ea7f67d-8e4d-4c84-bd5a-a5bcd713bb23"
@@ -45,7 +46,7 @@ $manifest = @(
         versions = @(
             [ordered]@{
                 version = $versionFourPart
-                changelog = "Jellyfin library availability checks, restored posters, official MediaForge scope registration, disabled-source enforcement, and additional security hardening."
+                changelog = [string]$pluginMetadata.changelog
                 targetAbi = $targetAbi
                 sourceUrl = $sourceUrl
                 checksum = $checksum

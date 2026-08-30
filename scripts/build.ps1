@@ -44,21 +44,21 @@ if (Test-Path -LiteralPath $moduleStage) {
     Remove-Item -LiteralPath $moduleStage -Recurse -Force
 }
 New-Item -ItemType Directory -Force -Path $pluginStage | Out-Null
-New-Item -ItemType Directory -Force -Path (Join-Path $moduleStage "mediaforge_jellyfin_connector") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $moduleStage "marshmello_jellyfin_connector") | Out-Null
 
 $pluginDll = Join-Path $dist "Jellyfin.Plugin.MediaForge.dll"
 Copy-Item -LiteralPath (Join-Path $output "Jellyfin.Plugin.MediaForge.dll") -Destination $pluginDll -Force
 Copy-Item -LiteralPath $pluginDll -Destination $pluginStage
 Copy-Item -LiteralPath (Join-Path $projectRoot "Jellyfin.Plugin.MediaForge\meta.json") -Destination $pluginStage
-Copy-Item -Path (Join-Path $projectRoot "MediaForge.Module\mediaforge_jellyfin_connector\*.py") -Destination (Join-Path $moduleStage "mediaforge_jellyfin_connector")
+Copy-Item -Path (Join-Path $projectRoot "MediaForge.Module\marshmello_jellyfin_connector\*.py") -Destination (Join-Path $moduleStage "marshmello_jellyfin_connector")
 
 $pluginZip = Join-Path $dist "MediaForgeRequests_$releaseVersion.zip"
-$moduleZip = Join-Path $dist "mediaforge_jellyfin_connector_$releaseVersion.zip"
+$moduleZip = Join-Path $dist "marshmello_jellyfin_connector_$releaseVersion.zip"
 if (Test-Path -LiteralPath $pluginZip) { Remove-Item -LiteralPath $pluginZip -Force }
 if (Test-Path -LiteralPath $moduleZip) { Remove-Item -LiteralPath $moduleZip -Force }
 
 Compress-Archive -Path (Join-Path $pluginStage "*") -DestinationPath $pluginZip -CompressionLevel Optimal
-Compress-Archive -Path (Join-Path $moduleStage "mediaforge_jellyfin_connector") -DestinationPath $moduleZip -CompressionLevel Optimal
+Compress-Archive -Path (Join-Path $moduleStage "marshmello_jellyfin_connector") -DestinationPath $moduleZip -CompressionLevel Optimal
 Remove-Item -LiteralPath $pluginStage -Recurse -Force
 Remove-Item -LiteralPath $moduleStage -Recurse -Force
 

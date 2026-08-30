@@ -4,7 +4,35 @@ Filme und Serien direkt in Jellyfin suchen und anfragen. Administratoren können
 Anfragen freigeben oder automatisch freigeben lassen. MediaForge übernimmt die
 Downloads; neu freigegebene Serien werden zusätzlich dauerhaft in Autosync aufgenommen.
 
-**Version: 0.5.0 · Jellyfin ab 10.11 · MediaForge 1.5.x / 1.6.x**
+**Version: 0.5.1 · Jellyfin ab 10.11 · MediaForge 1.5.x / 1.6.x**
+
+## Wechsel auf die Marshmello-Variante (0.5.1)
+
+Diese Variante hat die eigene Modul-ID und den eigenen Installationsordner
+`marshmello_jellyfin_connector`. Im Store heißt sie **Jellyfin Connector – Marshmello**.
+Damit wird sie unabhängig vom offiziellen `mediaforge_jellyfin_connector` (0.4.3)
+angeboten. Eine höhere Versionsnummer allein löst die Kollision gleicher IDs nicht,
+da MediaForge den offiziellen Store bei gleichen IDs bevorzugt.
+
+1. Den aktualisierten Quellstand einschließlich `module-store` auf GitHub hochladen.
+2. In MediaForge den zusätzlichen Store aktualisieren und **Jellyfin Connector – Marshmello**
+   neu installieren. Die neue ID ist eine separate Installation, kein Update der offiziellen Karte.
+3. MediaForge neu starten. Die Marshmello-Karte muss Version **0.5.1** anzeigen.
+4. **Auch das Jellyfin-Plugin auf 0.5.1 aktualisieren und Jellyfin neu starten.**
+   Es nutzt jetzt `/api/v1/marshmello-connector/`. Die Versionen 0.4.x/0.5.0 des
+   Jellyfin-Plugins nutzen weiter die alten API-Adressen und wechseln nicht automatisch.
+5. Gespeicherte Verbindung und Admin-Diagnose prüfen. Die MediaForge-Basis-URL
+   und die benötigten API-Berechtigungen bleiben unverändert.
+
+Das offizielle Modul darf parallel installiert bleiben: Ordner, Modul-ID,
+Flask-Blueprint, Einstellungen und API-Adressen sind getrennt. Seine Updates
+adressieren nicht die Marshmello-Installation. Auf automatische Downloads über
+andere Clients hat der Wechsel keinen Einfluss. Beide Varianten verwenden
+weiterhin dieselbe MediaForge-Queue und dieselben Autosync-Abos.
+
+Anfragen und Einstellungen des Jellyfin-Plugins bleiben beim Update erhalten.
+Die vorhandene `jellyfin-connector-receipts.sqlite3` wird für die Wiederherstellung
+früherer Übergaben weiterverwendet und darf nicht gelöscht werden.
 
 Das Projekt besteht aus einem Jellyfin-Plugin und einem MediaForge-Modul.
 **Bei Updates immer zuerst das MediaForge-Modul, danach das Jellyfin-Plugin aktualisieren.**
@@ -79,7 +107,7 @@ version.json                       Gemeinsame Versionsinformationen
    Keinen zusätzlichen Unterordner `Mediaforge-Jellyfin-Connector` im Repository anlegen.
 4. Änderungen speichern beziehungsweise committen. Das reine Hochladen des
    Quellcodes veröffentlicht noch keine neue Plugin-Version; der enthaltene
-   Release-Workflow startet erst bei einem gepushten Versionstag wie `v0.5.0`.
+   Release-Workflow startet erst bei einem gepushten Versionstag wie `v0.5.1`.
 
 Der Upload-Ordner enthält Quellcode, Tests und Dokumentation. `.git`, lokale SDKs,
 Caches, `bin` und `obj` sind nicht enthalten. Die ZIP-Installationspakete werden
@@ -117,29 +145,29 @@ eintragen:
 https://raw.githubusercontent.com/Marshmello0w/Mediaforge-Jellyfin-Connector/main/module-store/index.json
 ```
 
-Speichern, den Store aktualisieren und **Jellyfin Connector** installieren oder
+Speichern, den Store aktualisieren und **Jellyfin Connector – Marshmello** installieren oder
 aktualisieren. Da das Paket keine Signatur der MediaForge-Maintainer besitzt,
 muss die Installation unverifizierter Module ausdrücklich erlaubt werden –
 nur aktivieren, wenn du dem Quellcode vertraust. Danach MediaForge neu starten.
 Der Link funktioniert erst, wenn der Ordner tatsächlich hochgeladen wurde.
 GitHub Pages und ein Release sind für diesen Raw-Link nicht erforderlich.
 
-Version 0.5.0 ist neuer als 0.4.3. Ist bereits 0.5.0 installiert, wird diese
-Version nicht nochmals als neueres Update angeboten. Versionsnummern des
-Moduls und des Katalogs müssen zusammenpassen. Details: [Modulkatalog](module-store/README.md).
+Die Marshmello-Variante wird unter einer eigenen Modul-ID installiert. Spätere
+Updates vergleichen nur Versionen dieser ID. Versionsnummern des Moduls und des
+Katalogs müssen zusammenpassen. Details: [Modulkatalog](module-store/README.md).
 
 **Alternativ manuell, auch ohne Store:**
 
-Den Ordner `MediaForge.Module/mediaforge_jellyfin_connector` oder den gleichnamigen
+Den Ordner `MediaForge.Module/marshmello_jellyfin_connector` oder den gleichnamigen
 Ordner aus dem Modul-ZIP nach folgendem Ziel kopieren:
 
 ```text
-~/.mediaforge/thirdparties/mediaforge_jellyfin_connector/
+~/.mediaforge/thirdparties/marshmello_jellyfin_connector/
 ```
 
 Dort müssen `__init__.py`, `routes.py` und `operations.py` direkt liegen; den
 Modulordner nicht doppelt verschachteln. MediaForge neu starten und unter
-**Module Manager → Module Settings** prüfen, dass **Jellyfin Connector** aktiviert ist.
+**Module Manager → Module Settings** prüfen, dass **Jellyfin Connector – Marshmello** aktiviert ist.
 
 Unter **Settings → API** einen Schlüssel mit diesen Berechtigungen erstellen:
 
@@ -155,7 +183,7 @@ Den Schlüssel direkt sichern; er wird nur einmal angezeigt. Weitere Hinweise:
 
 ### 2. Jellyfin-Plugin installieren
 
-Für eine manuelle Installation `MediaForgeRequests_0.5.0.zip` in einen eigenen
+Für eine manuelle Installation `MediaForgeRequests_0.5.1.zip` in einen eigenen
 Pluginordner entpacken, unter Linux beispielsweise:
 
 ```text
@@ -240,8 +268,8 @@ Ergebnis:
 
 ```text
 dist/Jellyfin.Plugin.MediaForge.dll
-dist/MediaForgeRequests_0.5.0.zip
-dist/mediaforge_jellyfin_connector_0.5.0.zip
+dist/MediaForgeRequests_0.5.1.zip
+dist/marshmello_jellyfin_connector_0.5.1.zip
 dist/SHA256SUMS.txt
 ```
 
@@ -260,7 +288,7 @@ verwendet; bei einem weiteren Fork kann der Parameter die Adresse überschreiben
 Die Tests und Metadatenprüfung lassen sich separat ausführen:
 
 ```powershell
-.\scripts\validate-release.ps1 -Tag v0.5.0
+.\scripts\validate-release.ps1 -Tag v0.5.1
 dotnet restore Tests/Connector.SecurityTests/Connector.SecurityTests.csproj --locked-mode
 dotnet run --project Tests/Connector.SecurityTests/Connector.SecurityTests.csproj -c Release --no-restore
 python -m pip install --require-hashes -r Tests/requirements-ci.txt
@@ -292,8 +320,8 @@ Erst den geprüften Quellstand committen und pushen. Anschließend kann die Vers
 veröffentlicht werden, sofern der Tag noch nicht existiert:
 
 ```powershell
-git tag -a v0.5.0 -m "MediaForge Requests 0.5.0"
-git push origin v0.5.0
+git tag -a v0.5.1 -m "MediaForge Requests 0.5.1"
+git push origin v0.5.1
 ```
 
 Bestehende veröffentlichte Tags nicht überschreiben. Für eine spätere Version
@@ -323,9 +351,10 @@ einen Jellyfin-Neustart.
 - Das Plugin stellt keine Medien bereit. Nur Quellen und Inhalte verwenden,
   für deren Nutzung und Download die erforderlichen Rechte vorliegen.
 
-## Prüfstatus der Version 0.5.0
+## Prüfstatus der Version 0.5.1
 
-Lokal erfolgreich geprüft: **40 Python-Tests**, die .NET-Sicherheits- und
+Lokal erfolgreich geprüft: **42 Python-Tests**, einschließlich getrennter
+API-Routen bei gleichzeitig registriertem offiziellen Connector, die .NET-Sicherheits- und
 Workflowtests, Release-Build ohne Warnungen, Ruff, JavaScript-Syntax sowie eine
 Browserprüfung der Oberfläche mit simulierten API-Antworten.
 
@@ -333,7 +362,7 @@ Ein vollständiger Live-Test mit MediaForge 1.5 und 1.6, Jellyfin und Jellix ste
 noch aus. Vor produktivem Einsatz insbesondere Providerauflösung, Zielordner,
 Bibliothekszuordnung und das spätere Eintreffen neuer Folgen durch den echten
 Autosync-Dienst prüfen. Das Vorhandensein dieses Quellstands bedeutet nicht,
-dass Version 0.5.0 bereits veröffentlicht oder auf einem Server installiert wurde.
+dass Version 0.5.1 bereits veröffentlicht oder auf einem Server installiert wurde.
 
 Weitere Details: [Workflow, Migration, Wiederherstellung und API](docs/WORKFLOW.md).
 

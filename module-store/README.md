@@ -8,11 +8,11 @@ Nach dem Upload aller Dateien nach `main` im öffentlichen GitHub-Repository
 unter **Weitere Repositories** diese URL eintragen:
 
 ```text
-https://raw.githubusercontent.com/DEIN-GITHUB-NAME/DEIN-REPOSITORY/main/module-store/index.json
+https://raw.githubusercontent.com/Marshmello0w/Mediaforge-Jellyfin-Connector/main/module-store/index.json
 ```
 
 Speichern, unverifizierte Module nur bei Vertrauen in diesen Quellcode zulassen,
-den Store aktualisieren und **Jellyfin Connector** installieren beziehungsweise
+den Store aktualisieren und **Jellyfin Connector – Marshmello** installieren beziehungsweise
 aktualisieren. Anschließend MediaForge neu starten. Die Signaturprüfung bleibt
 unverändert: Dieses Paket ist nicht durch MediaForge-Maintainer signiert.
 
@@ -22,19 +22,25 @@ installiert. Nach erfolgreichem Release/Pages-Deployment ist der Katalog außerd
 unter folgendem Link erreichbar:
 
 ```text
-https://DEIN-GITHUB-NAME.github.io/DEIN-REPOSITORY/module-store/index.json
+https://marshmello0w.github.io/Mediaforge-Jellyfin-Connector/module-store/index.json
 ```
 
 ## Aktualisierung
 
-Modulversion und Katalogversion müssen übereinstimmen und für ein Update höher
-als die bereits installierte Version sein. 0.5.0 ersetzt 0.4.3. Bei bereits
-installierter Version 0.5.0 ist kein neueres Update vorhanden.
+Die Modul-ID `marshmello_jellyfin_connector` unterscheidet sich absichtlich von
+der offiziellen ID `mediaforge_jellyfin_connector`. **Jellyfin Connector – Marshmello**
+wird daher beim Wechsel neu installiert; es ersetzt die offizielle Karte nicht.
+Nach der Modulinstallation MediaForge neu starten und das Jellyfin-Plugin auf
+0.5.1 aktualisieren, damit es die getrennte API verwendet. Beide Module dürfen
+parallel installiert bleiben. Der zusätzliche Repository-Link bleibt gleich.
+
+Für spätere Updates müssen Modulversion und Katalogversion übereinstimmen und
+höher als die bereits installierte Marshmello-Version sein.
 
 Nach Änderungen an den Moduldateien neu erzeugen:
 
 ```powershell
-.\scripts\generate-module-store.ps1 -RepositorySlug DEIN-GITHUB-NAME/DEIN-REPOSITORY
+.\scripts\generate-module-store.ps1 -RepositorySlug Marshmello0w/Mediaforge-Jellyfin-Connector
 ```
 
 Bei einer neuen Veröffentlichung zuerst `scripts/set-version.ps1` verwenden;

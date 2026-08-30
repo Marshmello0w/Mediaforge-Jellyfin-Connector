@@ -8,10 +8,10 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from flask import Flask, jsonify, request
+from flask import Blueprint, Flask, jsonify, request
 from test_mediaforge_module import _load_routes_module
 
-MODULE = Path(__file__).parents[1] / "MediaForge.Module/mediaforge_jellyfin_connector"
+MODULE = Path(__file__).parents[1] / "MediaForge.Module/marshmello_jellyfin_connector"
 spec = importlib.util.spec_from_file_location("connector_operations_test", MODULE / "operations.py")
 operations = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(operations)
@@ -49,6 +49,23 @@ class LedgerTests(unittest.TestCase):
 
 class AutosyncTests(unittest.TestCase):
     modern = True
+
+    def test_official_connector_can_coexist_without_shadowing_fork(self):
+        official = Blueprint('mediaforge_jellyfin_connector', __name__)
+        official.add_url_rule('/api/v1/connector/health', 'api_connector_health',
+                              lambda: jsonify({'module': 'official', 'version': '0.4.3'}))
+        official.add_url_rule('/api/v1/connector/autosync', 'api_connector_autosync',
+                              lambda: jsonify({'error': 'official handler reached'}), methods=['POST'])
+        self.app.register_blueprint(official)
+        response = self.post()
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, len(self.creates))
+        self.assertEqual('official', self.client.get('/api/v1/connector/health').get_json()['module'])
+        fork_rules = [r for r in self.app.url_map.iter_rules()
+                      if r.endpoint.startswith('marshmello_jellyfin_connector.')]
+        self.assertTrue(fork_rules)
+        self.assertTrue(all(r.rule.startswith('/api/v1/marshmello-connector/') for r in fork_rules))
+
     def setUp(self):
         self.routes = _load_routes_module(modern=self.modern)
         self.temp = tempfile.TemporaryDirectory()
@@ -56,7 +73,7 @@ class AutosyncTests(unittest.TestCase):
         config = types.ModuleType("mediaforge.config")
         config.MEDIAFORGE_CONFIG_DIR = Path(self.temp.name)
         sys.modules[config.__name__] = config
-        sys.modules["mediaforge.web.thirdparties.mediaforge_jellyfin_connector"].__path__ = [str(MODULE)]
+        sys.modules["mediaforge.web.thirdparties.marshmello_jellyfin_connector"].__path__ = [str(MODULE)]
         self.db = sys.modules["mediaforge.web.db"]
         self.jobs = {}
         self.queue = []
@@ -99,7 +116,7 @@ class AutosyncTests(unittest.TestCase):
         return view
 
     def post(self, body=None, key='queue:write-key'):
-        return self.client.post('/api/v1/connector/autosync', json=body or self.body, headers={'X-Api-Key': key})
+        return self.client.post('/api/v1/marshmello-connector/autosync', json=body or self.body, headers={'X-Api-Key': key})
 
     def test_create_and_repeat_keep_one_job_and_default_path(self):
         self.assertEqual(self.post().status_code, 200)
@@ -133,17 +150,17 @@ class AutosyncTests(unittest.TestCase):
     def test_download_receipt_replays_without_second_download(self):
         body = dict(self.body, episodes=['https://allowed.invalid/media/episode1'], upscale=False, operation_id='a' * 32)
         for _ in range(2):
-            response = self.client.post('/api/v1/connector/download', json=body, headers={'X-Api-Key': 'queue:write-key'})
+            response = self.client.post('/api/v1/marshmello-connector/download', json=body, headers={'X-Api-Key': 'queue:write-key'})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.get_json()['queue_id'], 42)
         self.assertEqual(self.download_calls, 1)
-        response = self.client.get('/api/v1/connector/operations/' + 'a' * 32, headers={'X-Api-Key': 'queue:read-key'})
+        response = self.client.get('/api/v1/marshmello-connector/operations/' + 'a' * 32, headers={'X-Api-Key': 'queue:read-key'})
         self.assertEqual(response.get_json()['state'], 'confirmed')
 
     def test_concurrent_autosync_creates_keep_one_job(self):
         def submit(_):
             with self.app.test_client() as client:
-                return client.post('/api/v1/connector/autosync', json=self.body, headers={'X-Api-Key': 'queue:write-key'}).status_code
+                return client.post('/api/v1/marshmello-connector/autosync', json=self.body, headers={'X-Api-Key': 'queue:write-key'}).status_code
         with ThreadPoolExecutor(max_workers=4) as pool:
             self.assertEqual(list(pool.map(submit, range(8))), [200] * 8)
         self.assertEqual(len(self.creates), 1)

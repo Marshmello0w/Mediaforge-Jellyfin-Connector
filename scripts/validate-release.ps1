@@ -27,7 +27,7 @@ if ([string]$metadata.version -ne [string]$versionInfo.versionFourPart -or
     throw "meta.json does not match version.json"
 }
 
-$module = Get-Content -LiteralPath (Join-Path $projectRoot "MediaForge.Module\mediaforge_jellyfin_connector\__init__.py") -Raw -Encoding UTF8
+$module = Get-Content -LiteralPath (Join-Path $projectRoot "MediaForge.Module\marshmello_jellyfin_connector\__init__.py") -Raw -Encoding UTF8
 if ($module -notmatch ('MODULE_VERSION = "' + [regex]::Escape([string]$versionInfo.version) + '"')) {
     throw "The MediaForge module version does not match version.json"
 }

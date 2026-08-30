@@ -1,6 +1,18 @@
-# Requests and AutoSync (0.5.0)
+# Requests and AutoSync (0.5.1)
 
 ## Installation and upgrade
+
+Version 0.5.1 introduces a separate MediaForge identity and folder,
+`marshmello_jellyfin_connector`, shown as **Jellyfin Connector - Marshmello**.
+The official `mediaforge_jellyfin_connector` ID otherwise takes precedence in
+MediaForge's store merge regardless of our higher version. Install the new
+entry separately, restart MediaForge, then update the Jellyfin plugin to 0.5.1
+and restart Jellyfin. The new plugin uses `/api/v1/marshmello-connector/` only;
+it does not silently fall back to the official connector. Both MediaForge
+modules can coexist because their blueprints, scopes, setting namespaces and
+route URLs are distinct. Jellyfin's own API/Jellix protocol and plugin identity
+remain unchanged, preserving request data and settings. Keep the existing
+receipt database to reconcile requests from before the namespace change.
 
 Install **both** release packages. Update the MediaForge companion module
 first, restart MediaForge, then update the Jellyfin plugin and restart Jellyfin.
@@ -136,8 +148,8 @@ New MediaForge routes:
 
 | Method | Route | Scope |
 |---|---|---|
-| POST | `/api/v1/connector/autosync` | `queue:write` |
-| GET | `/api/v1/connector/operations/{operation_id}` | `queue:read` |
+| POST | `/api/v1/marshmello-connector/autosync` | `queue:write` |
+| GET | `/api/v1/marshmello-connector/operations/{operation_id}` | `queue:read` |
 
 Downloads optionally accept a 32-character hexadecimal `operation_id`. The
 health response advertises `autosync` and `download-receipts` capabilities and

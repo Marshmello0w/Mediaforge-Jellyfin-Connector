@@ -281,7 +281,7 @@ static void TestPosterProxyContract()
 
     object?[] connectorArgs =
     [
-        "/api/v1/connector/image?url=https%3A%2F%2Fimages.example.invalid%2Fposter.jpg",
+        "/api/v1/marshmello-connector/image?url=https%3A%2F%2Fimages.example.invalid%2Fposter.jpg",
         null,
     ];
     Assert(!(bool)method.Invoke(null, connectorArgs)!, "The compatibility connector route leaked into browser-facing URLs.");
@@ -1243,25 +1243,25 @@ public sealed class FakeMediaForgeHandler : HttpMessageHandler
         }
 
         var path = request.RequestUri?.AbsolutePath ?? string.Empty;
-        if (IsMovie && path == "/api/v1/connector/sources")
+        if (IsMovie && path == "/api/v1/marshmello-connector/sources")
             return Json(System.Net.HttpStatusCode.OK, "{\"sources\":[{\"id\":\"source-a\",\"label\":\"Movies\",\"adult\":false,\"enabled\":true,\"media_types\":[\"movie\"]}]}");
-        if (IsMovie && path == "/api/v1/connector/series")
+        if (IsMovie && path == "/api/v1/marshmello-connector/series")
             return Json(System.Net.HttpStatusCode.OK, "{\"title\":\"Movie\",\"is_movie\":true,\"year\":2026}");
-        if (path == "/api/v1/connector/autosync")
+        if (path == "/api/v1/marshmello-connector/autosync")
         {
             AutosyncCalls++;
             return Json(AutosyncStatus, "{\"job_id\":7,\"enabled\":true,\"filtered\":false}");
         }
-        if (path.StartsWith("/api/v1/connector/operations/", StringComparison.Ordinal))
+        if (path.StartsWith("/api/v1/marshmello-connector/operations/", StringComparison.Ordinal))
             return Json(System.Net.HttpStatusCode.OK, ConfirmOperation ? "{\"state\":\"confirmed\",\"queue_id\":42}" : "{\"state\":\"uncertain\"}");
-        if (path == "/api/v1/connector/download")
+        if (path == "/api/v1/marshmello-connector/download")
         {
             DownloadCalls++;
             using var payload = JsonDocument.Parse(request.Content!.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult());
             LastOperationId = payload.RootElement.TryGetProperty("operation_id", out var operation) ? operation.GetString() : null;
             if (LoseDownloadResponse) throw new HttpRequestException("Simulated connection loss after write");
         }
-        if (path == "/api/v1/connector/progress")
+        if (path == "/api/v1/marshmello-connector/progress")
         {
             using var payload = JsonDocument.Parse(request.Content!.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult());
             var ids = payload.RootElement.GetProperty("queue_ids").EnumerateArray().Select(x => x.GetInt64()).ToArray();
@@ -1270,10 +1270,10 @@ public sealed class FakeMediaForgeHandler : HttpMessageHandler
         }
         return path switch
         {
-            "/api/v1/connector/health" => Json(
+            "/api/v1/marshmello-connector/health" => Json(
                 HealthStatus,
                 HealthStatus == System.Net.HttpStatusCode.OK ? SupportsReceipts ? "{\"ok\":true,\"capabilities\":[\"autosync\",\"download-receipts\"]}" : "{\"ok\":true}" : "{\"error\":\"safe\"}"),
-            "/api/v1/connector/sources" => Json(System.Net.HttpStatusCode.OK, """
+            "/api/v1/marshmello-connector/sources" => Json(System.Net.HttpStatusCode.OK, """
                 {
                   "sources": [
                     {"id":"source-a","label":"Safe Source","adult":false,"enabled":true,"media_types":["series"]},
@@ -1282,21 +1282,21 @@ public sealed class FakeMediaForgeHandler : HttpMessageHandler
                   ]
                 }
                 """),
-            "/api/v1/connector/search" => Json(System.Net.HttpStatusCode.OK, """
+            "/api/v1/marshmello-connector/search" => Json(System.Net.HttpStatusCode.OK, """
                 {"results":[{"title":"Search Result","url":"https://example.invalid/series/search-result","year":"2026","media_type":"series"}]}
                 """),
-            "/api/v1/connector/series" => Json(System.Net.HttpStatusCode.OK, """
+            "/api/v1/marshmello-connector/series" => Json(System.Net.HttpStatusCode.OK, """
                 {"title":"Submitted Through Bridge","description":"Safe","is_movie":false,"year":2026,"tvdb_id":"12345"}
                 """),
-            "/api/v1/connector/seasons" => Json(System.Net.HttpStatusCode.OK, """
+            "/api/v1/marshmello-connector/seasons" => Json(System.Net.HttpStatusCode.OK, """
                 {"seasons":[{"url":"https://example.invalid/season/1","season_number":1,"episode_count":1}]}
                 """),
-            "/api/v1/connector/episodes" => Json(System.Net.HttpStatusCode.OK, """
+            "/api/v1/marshmello-connector/episodes" => Json(System.Net.HttpStatusCode.OK, """
                 {"episodes":[{"url":"https://example.invalid/episode/1","season_number":1,"episode_number":1,"languages":["German Dub"]}]}
                 """),
-            "/api/v1/connector/providers" => Json(System.Net.HttpStatusCode.OK, "{\"German Dub\":[\"VOE\"]}"),
-            "/api/v1/connector/progress" => Json(System.Net.HttpStatusCode.OK, "{\"items\":[]}"),
-            "/api/v1/connector/download" => Json(System.Net.HttpStatusCode.OK, "{\"queue_id\":42,\"accepted_episode_count\":1}"),
+            "/api/v1/marshmello-connector/providers" => Json(System.Net.HttpStatusCode.OK, "{\"German Dub\":[\"VOE\"]}"),
+            "/api/v1/marshmello-connector/progress" => Json(System.Net.HttpStatusCode.OK, "{\"items\":[]}"),
+            "/api/v1/marshmello-connector/download" => Json(System.Net.HttpStatusCode.OK, "{\"queue_id\":42,\"accepted_episode_count\":1}"),
             _ => Json(System.Net.HttpStatusCode.NotFound, "{\"error\":\"not found\"}"),
         };
     }

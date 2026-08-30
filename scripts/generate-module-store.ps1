@@ -1,6 +1,9 @@
 param([string]$RepositorySlug = $env:GITHUB_REPOSITORY)
 
 $ErrorActionPreference = "Stop"
+if ([string]::IsNullOrWhiteSpace($RepositorySlug)) {
+    $RepositorySlug = "Marshmello0w/Mediaforge-Jellyfin-Connector"
+}
 if ($RepositorySlug -and $RepositorySlug -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
     throw "RepositorySlug must use the owner/repository format"
 }
@@ -8,7 +11,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $versionInfo = Get-Content -LiteralPath (Join-Path $projectRoot "version.json") -Raw -Encoding UTF8 | ConvertFrom-Json
 $version = [string]$versionInfo.version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid version.json version" }
-$moduleId = "mediaforge_jellyfin_connector"
+$moduleId = "marshmello_jellyfin_connector"
 $source = Join-Path $projectRoot "MediaForge.Module/$moduleId"
 $metadata = Get-Content -LiteralPath (Join-Path $source "__init__.py") -Raw -Encoding UTF8
 function Read-ModuleString([string]$Name) {

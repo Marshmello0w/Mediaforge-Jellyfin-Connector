@@ -39,13 +39,13 @@ public sealed class MediaForgeClient
     }
 
     public Task<JsonElement> GetHealthAsync(CancellationToken cancellationToken)
-        => SendAsync(HttpMethod.Get, "api/v1/connector/health", null, cancellationToken);
+        => SendAsync(HttpMethod.Get, "api/v1/marshmello-connector/health", null, cancellationToken);
 
     public Task<JsonElement> EnsureAutosyncAsync(MediaRequest request, CancellationToken token)
-        => SendAsync(HttpMethod.Post, "api/v1/connector/autosync", new { title = request.Title, series_url = request.SeriesUrl, language = request.Language, provider = request.Provider }, token);
+        => SendAsync(HttpMethod.Post, "api/v1/marshmello-connector/autosync", new { title = request.Title, series_url = request.SeriesUrl, language = request.Language, provider = request.Provider }, token);
 
     public Task<JsonElement> GetOperationAsync(string operationId, CancellationToken token)
-        => SendAsync(HttpMethod.Get, "api/v1/connector/operations/" + Uri.EscapeDataString(operationId), null, token);
+        => SendAsync(HttpMethod.Get, "api/v1/marshmello-connector/operations/" + Uri.EscapeDataString(operationId), null, token);
 
     /// <summary>Returns a sanitized connector diagnostic without exposing secrets or upstream bodies.</summary>
     public async Task<MediaForgeConnectionStatus> CheckHealthAsync(CancellationToken cancellationToken)
@@ -75,33 +75,33 @@ public sealed class MediaForgeClient
     }
 
     public Task<JsonElement> GetSourcesAsync(CancellationToken cancellationToken)
-        => SendAsync(HttpMethod.Get, "api/v1/connector/sources", null, cancellationToken);
+        => SendAsync(HttpMethod.Get, "api/v1/marshmello-connector/sources", null, cancellationToken);
 
     public Task<JsonElement> SearchAsync(string keyword, string site, CancellationToken cancellationToken)
         => SendAsync(
             HttpMethod.Post,
-            "api/v1/connector/search",
+            "api/v1/marshmello-connector/search",
             new { keyword, site },
             cancellationToken,
             SearchTimeout);
 
     public Task<JsonElement> GetSeriesAsync(string url, CancellationToken cancellationToken)
-        => GetWithUrlAsync("api/v1/connector/series", url, cancellationToken);
+        => GetWithUrlAsync("api/v1/marshmello-connector/series", url, cancellationToken);
 
     public Task<JsonElement> GetSeasonsAsync(string url, CancellationToken cancellationToken)
-        => GetWithUrlAsync("api/v1/connector/seasons", url, cancellationToken);
+        => GetWithUrlAsync("api/v1/marshmello-connector/seasons", url, cancellationToken);
 
     public Task<JsonElement> GetEpisodesAsync(string url, CancellationToken cancellationToken)
-        => GetWithUrlAsync("api/v1/connector/episodes", url, cancellationToken);
+        => GetWithUrlAsync("api/v1/marshmello-connector/episodes", url, cancellationToken);
 
     public Task<JsonElement> GetProvidersAsync(string url, CancellationToken cancellationToken)
-        => GetWithUrlAsync("api/v1/connector/providers", url, cancellationToken);
+        => GetWithUrlAsync("api/v1/marshmello-connector/providers", url, cancellationToken);
 
     public Task<JsonElement> GetProgressAsync(IReadOnlyCollection<long> queueIds, CancellationToken cancellationToken)
-        => SendAsync(HttpMethod.Post, "api/v1/connector/progress", new { queue_ids = queueIds }, cancellationToken);
+        => SendAsync(HttpMethod.Post, "api/v1/marshmello-connector/progress", new { queue_ids = queueIds }, cancellationToken);
 
     public Task<JsonElement> GetDiscoverAsync(CancellationToken cancellationToken)
-        => SendAsync(HttpMethod.Get, "api/v1/connector/discover", null, cancellationToken);
+        => SendAsync(HttpMethod.Get, "api/v1/marshmello-connector/discover", null, cancellationToken);
 
     public async Task<MediaForgeImage> GetImageAsync(string url, CancellationToken cancellationToken)
     {
@@ -117,7 +117,7 @@ public sealed class MediaForgeClient
             // MediaForge 1.5 session-protects /api/img. The module fallback
             // exposes the same hardened core proxy behind scoped API-key auth.
             return await GetImageFromPathAsync(
-                "api/v1/connector/image?url=" + encodedUrl,
+                "api/v1/marshmello-connector/image?url=" + encodedUrl,
                 cancellationToken).ConfigureAwait(false);
         }
     }
@@ -212,7 +212,7 @@ public sealed class MediaForgeClient
             body["operation_id"] = request.OperationId;
         var response = await SendAsync(
             HttpMethod.Post,
-            "api/v1/connector/download",
+            "api/v1/marshmello-connector/download",
             body,
             cancellationToken).ConfigureAwait(false);
 
@@ -374,7 +374,7 @@ public sealed class MediaForgeClient
     {
         try
         {
-            _ = BuildUri(baseUrl, "api/v1/connector/health");
+            _ = BuildUri(baseUrl, "api/v1/marshmello-connector/health");
             return true;
         }
         catch (MediaForgeException)

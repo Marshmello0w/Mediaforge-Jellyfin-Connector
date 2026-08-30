@@ -1,6 +1,6 @@
 {
   "category": "General",
-  "changelog": "v0.5.0\n- Automatically subscribe approved series to MediaForge AutoSync without changing existing jobs\n- Add durable download receipts and conservative recovery after interrupted handoffs\n- Add background queue/library synchronization, shared requests and per-user rules\n- Add paginated admin overview, batch decisions, recovery actions and diagnostics\n- Add persistent in-plugin notifications and daily episode digests",
+  "changelog": "v0.5.1\n- Separate Marshmello module identity, folder, blueprint and API to avoid official-store collisions\n- Requires Jellyfin plugin 0.5.1 and the new Jellyfin Connector - Marshmello module\n- Preserve existing requests, subscriptions and durable download receipts\n- Test coexistence with official connector routes on modern and legacy MediaForge interfaces",
   "description": "Searches the movie and TV sources enabled in MediaForge directly from Jellyfin. Users can request downloads; administrators can approve them or enable automatic mode.",
   "guid": "2ea7f67d-8e4d-4c84-bd5a-a5bcd713bb23",
   "name": "MediaForge Requests",
@@ -8,7 +8,7 @@
   "owner": "MediaForge Jellyfin Connector contributors",
   "targetAbi": "10.11.0.0",
   "timestamp": "2026-08-31T00:00:00Z",
-  "version": "0.5.0.0",
+  "version": "0.5.1.0",
   "status": "Active",
   "autoUpdate": true
 }

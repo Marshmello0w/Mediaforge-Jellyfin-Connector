@@ -10,7 +10,7 @@ $generatedPaths = @(
     "repository",
     "Jellyfin.Plugin.MediaForge\bin",
     "Jellyfin.Plugin.MediaForge\obj",
-    "MediaForge.Module\mediaforge_jellyfin_connector\__pycache__",
+    "MediaForge.Module\marshmello_jellyfin_connector\__pycache__",
     "Tests\__pycache__",
     "Tests\Connector.SecurityTests\bin",
     "Tests\Connector.SecurityTests\obj"
