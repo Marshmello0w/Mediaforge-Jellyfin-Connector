@@ -1,6 +1,12 @@
 name: Build, release and publish Jellyfin repository
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag matching version.json (for example v0.5.1)"
+        required: true
+        default: "v0.5.1"
   push:
     tags:
       - "v*"
@@ -10,6 +16,9 @@ concurrency:
   cancel-in-progress: false
 
 permissions: {}
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
@@ -36,7 +45,7 @@ jobs:
 
       - name: Validate release metadata
         shell: pwsh
-        run: ./scripts/validate-release.ps1 -Tag $env:GITHUB_REF_NAME
+        run: ./scripts/validate-release.ps1 -Tag $env:RELEASE_TAG
 
       - name: Restore locked .NET dependencies
         run: dotnet restore Tests/Connector.SecurityTests/Connector.SecurityTests.csproj --locked-mode
@@ -56,7 +65,7 @@ jobs:
       - name: Run MediaForge module tests and lint
         run: |
           python -m unittest discover -s Tests -p "test_*.py"
-          ruff check MediaForge.Module Tests/test_mediaforge_module.py
+          ruff check MediaForge.Module Tests/*.py
 
       - name: Check browser scripts
         run: |
@@ -70,7 +79,7 @@ jobs:
 
       - name: Generate Jellyfin repository manifest
         shell: pwsh
-        run: ./scripts/generate-manifest.ps1 -RepositorySlug $env:GITHUB_REPOSITORY -ReleaseTag $env:GITHUB_REF_NAME
+        run: ./scripts/generate-manifest.ps1 -RepositorySlug $env:GITHUB_REPOSITORY -ReleaseTag $env:RELEASE_TAG
 
       - name: Upload release bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -81,7 +90,7 @@ jobs:
           path: |
             dist/Jellyfin.Plugin.MediaForge.dll
             dist/MediaForgeRequests_*.zip
-            dist/mediaforge_jellyfin_connector_*.zip
+            dist/marshmello_jellyfin_connector_*.zip
             dist/SHA256SUMS.txt
 
       - name: Upload Jellyfin repository site
@@ -110,13 +119,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: >-
-          gh release create "$GITHUB_REF_NAME"
+          gh release create "$RELEASE_TAG"
           dist/Jellyfin.Plugin.MediaForge.dll
           dist/MediaForgeRequests_*.zip
-          dist/mediaforge_jellyfin_connector_*.zip
+          dist/marshmello_jellyfin_connector_*.zip
           dist/SHA256SUMS.txt
-          --verify-tag
-          --title "MediaForge Requests $GITHUB_REF_NAME"
+          --target "$GITHUB_SHA"
+          --title "MediaForge Requests $RELEASE_TAG"
           --generate-notes
 
   deploy-repository:
