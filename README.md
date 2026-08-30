@@ -1,96 +1,123 @@
 # MediaForge Jellyfin Connector
 
-A Jellyfin plugin that allows **all signed-in Jellyfin users** to search the
-movie and TV sources enabled in MediaForge.
+Filme und Serien direkt in Jellyfin suchen und anfragen. Administratoren können
+Anfragen freigeben oder automatisch freigeben lassen. MediaForge übernimmt die
+Downloads; neu freigegebene Serien werden zusätzlich dauerhaft in Autosync aufgenommen.
 
-- Request mode: users submit a request; Jellyfin administrators can review,
-  approve, or reject it in the admin tab.
-- Automatic mode: selected content is added to the MediaForge download queue
-  immediately.
-- Search all enabled MediaForge sources or select individual sources. Fast
-  sources appear immediately while the remaining sources continue in parallel;
-  each source uses the same 15-second deadline as MediaForge's UI.
-- Browse clickable New, Popular, and Movies rows from MediaForge immediately
-  when opening the Requests page.
-- Automatically compare a title with Jellyfin's actual library and request
-  only missing movies, seasons, or individual episodes. Complete titles are
-  never queued again. Provider IDs are preferred; title and year provide a
-  conservative fallback.
-- Each user has a personal status view, while administrators have a shared
-  overview. Requests are stored atomically in the plugin data file.
-- Users can withdraw pending requests and view MediaForge download progress
-  after approval. The plugin intentionally does not allow users to cancel a
-  download once it has started.
-- Server-side API connection: a stored MediaForge key is never returned to a
-  browser and is not stored as plaintext in the Jellyfin plugin configuration.
-- Adult sources remain blocked for API-key requests by MediaForge's central
-  age gate and cannot be enabled from Jellyfin.
+**Version: 0.5.0 · Jellyfin ab 10.11 · MediaForge 1.5.x / 1.6.x**
 
-## Architecture
+Das Projekt besteht aus einem Jellyfin-Plugin und einem MediaForge-Modul.
+**Bei Updates immer zuerst das MediaForge-Modul, danach das Jellyfin-Plugin aktualisieren.**
 
-The project intentionally consists of two components:
+## Funktionen
 
-1. `Jellyfin.Plugin.MediaForge`: the user interface, Jellyfin permissions,
-   request database, and administrator approval flow.
-2. `MediaForge.Module/mediaforge_jellyfin_connector`: a small MediaForge module
-   that extends the existing external API with search, content resolution, and
-   queue write access. Internally, it uses MediaForge's own handlers and
-   providers.
+### Für Benutzer
 
-MediaForge changes its internal Web UI endpoints more frequently than its
-versioned API. The companion module keeps this dependency on the MediaForge
-side and exposes an API-key-protected interface to the Jellyfin plugin.
+- Quellenübergreifende Suche sowie Reihen für neue und beliebte Inhalte und Filme.
+- Bibliotheksabgleich: nur fehlende Filme, Staffeln oder Episoden anfragen.
+- Bei passenden Anfragen ebenfalls Interesse anmelden; bereits angefragte
+  Episoden werden gemeinsam genutzt, zusätzliche Episoden separat geplant.
+- Vollständige Serien über **Zukünftige Folgen abonnieren** dauerhaft beobachten,
+  ohne einen Erstdownload auszulösen.
+- Persönlicher Verlauf mit Freigabe, Downloadfortschritt und tatsächlicher
+  Jellyfin-Verfügbarkeit. Autosync besitzt einen eigenen Status.
+- Eigene noch ausstehende Beteiligungen zurückziehen, ohne andere Benutzer oder
+  laufende Downloads zu entfernen.
+- Persönliches Mitteilungsfach mit Ungelesen-Zähler und konfigurierbaren Kategorien.
+  Neue Folgen werden standardmäßig täglich pro Serie zusammengefasst.
+- Berechtigungsgeprüfte Links zum Öffnen verfügbarer Inhalte in Jellyfin.
 
-### Optional Jellix integration
+### Für Administratoren
 
-Version 0.4.0 adds protocol-v1 compatibility with the optional
-`Jellix-for-Jellyfin` plugin. Jellix discovers the concrete in-process bridge
-`Jellyfin.Plugin.MediaForge.Integration.JellixBridge` after both Jellyfin
-plugins have been installed and Jellyfin has been restarted. No shared contract
-DLL and no additional API key are required.
+- Übersicht mit Zählern, Titel-/Benutzer-/Status-/Quellen-/Zeitraumfiltern und Seitennavigation.
+- Mehrfachfreigabe und Mehrfachablehnung mit Ergebnissen pro Anfrage und eigenen Ablehnungsgründen.
+- Benutzerregeln für Freigabemodus, maximale offene Anfragen und die Erlaubnis für Serien-Abos.
+- Getrennte Aktionen für Autosync-Wiederholung, erneute Prüfung fehlender Inhalte
+  und Abgleich unklarer Downloadübergaben.
+- Diagnose für Verbindung, Versionen, Modul-Fähigkeiten und API-Berechtigungen.
+- Gemeinsame Vorgänge mit sichtbaren Beteiligten; normale Benutzer sehen keine fremden Identitäten.
 
-Jellix can search, submit requests, list the linked Jellyfin user's requests,
-and monitor download state. Search selections use short-lived, user-bound,
-single-use opaque tokens. Jellix never receives MediaForge URLs, episode lists,
-the connector API key, or direct access to `requests.json`; both Jellyfin UIs
-use the same request application service and atomic request store.
+### Autosync und Zuverlässigkeit
 
-## Requirements
+- Neue manuelle und automatische Serienfreigaben richten genau ein passendes
+  Autosync-Abo ein oder übernehmen ein vorhandenes. Filme erhalten kein Abo.
+- Bestehende Pausen, Filter, Sprache, Provider und Zielordner bleiben unverändert.
+  Bestätigte Abos werden nach manueller Löschung nicht automatisch neu angelegt.
+- Die erste Autosync-Bestandsprüfung startet keinen zusätzlichen Download.
+  Spätere Prüfungen folgen den MediaForge-Einstellungen.
+- Downloadübergabe und Autosync-Anmeldung werden getrennt und dauerhaft gespeichert.
+  Autosync-Fehler lösen Wiederholungen nach 1, 5, 15 und danach jeweils 60 Minuten aus.
+- Vorgangskennungen und gespeicherte Bestätigungen verhindern blind wiederholte
+  Downloadübergaben nach Timeouts oder Neustarts. Unklare Übergaben werden zuerst abgeglichen.
+- Ein Hintergrunddienst prüft aktive Downloads alle 30 Sekunden, unabhängig von
+  geöffneten Benutzerseiten. Bibliotheksereignisse und ein Fünf-Minuten-Abgleich
+  prüfen die tatsächliche Verfügbarkeit.
+- Fertige Downloads geben Anfrageplätze frei. Dauerhafte Abos belegen keinen offenen Downloadplatz.
+- Keine externen Benachrichtigungen über Discord, Telegram oder E-Mail.
 
-- Jellyfin 10.11 or later
-- MediaForge 1.5.x or 1.6.x
-- MediaForge must be reachable from the Jellyfin server over HTTP(S)
-- .NET 9 SDK for local builds
+## Projektstruktur
 
-MediaForge downloads the files. Its download directories must also be
-accessible to Jellyfin as media libraries. When using Docker, mount the same
-host directory in both containers, for example:
+```text
+.github/workflows/release.yml       Tests, Release-Pakete und Jellyfin-Repository
+Jellyfin.Plugin.MediaForge/         Jellyfin-Plugin, Oberfläche und Anwendungslogik
+MediaForge.Module/                  MediaForge-Modul und Installationshinweise
+Tests/                             Python- und .NET-Sicherheits-/Workflowtests
+scripts/                           Build, Versionspflege und Release-Prüfung
+docs/WORKFLOW.md                    Migration, Wiederherstellung und API-Details
+version.json                       Gemeinsame Versionsinformationen
+```
+
+## Diesen Ordner auf GitHub hochladen
+
+1. Den **Inhalt dieses Ordners** in das Stammverzeichnis des Repositorys hochladen.
+   `README.md`, `version.json`, `Jellyfin.Plugin.MediaForge` und die übrigen
+   Projektordner müssen direkt auf der obersten Ebene liegen.
+2. Den Ordner `.github` sowie `.gitignore` und `.gitattributes` mit übernehmen.
+   Prüfen, dass `.github/workflows/release.yml` nach dem Upload vorhanden ist.
+3. Bei einem bestehenden Repository die gleichnamigen Projektdateien aktualisieren.
+   Keinen zusätzlichen Unterordner `Mediaforge-Jellyfin-Connector` im Repository anlegen.
+4. Änderungen speichern beziehungsweise committen. Das reine Hochladen des
+   Quellcodes veröffentlicht noch keine neue Plugin-Version; der enthaltene
+   Release-Workflow startet erst bei einem gepushten Versionstag wie `v0.5.0`.
+
+Der Upload-Ordner enthält Quellcode, Tests und Dokumentation. `.git`, lokale SDKs,
+Caches, `bin`, `obj` und erzeugte Installationspakete sind nicht enthalten.
+Installationspakete gehören in die GitHub-Release-Anhänge und werden durch den
+Build beziehungsweise den Release-Workflow erzeugt.
+
+## Voraussetzungen
+
+- Jellyfin 10.11 oder neuer; Ziel-ABI dieser Version: `10.11.0.0`.
+- MediaForge 1.5.x oder 1.6.x, vom Jellyfin-Server erreichbar.
+- Gemeinsamer Zugriff auf die heruntergeladenen Mediendateien.
+- Für eigene Builds: .NET 9 SDK und PowerShell; für Python-Tests zusätzlich Python 3.13.
+
+Bei Docker müssen beide Container denselben Medienbestand sehen, beispielsweise:
 
 ```yaml
 volumes:
   - /srv/media:/media
 ```
 
-MediaForge can then write to directories such as `/media/Movies` and
-`/media/TV`, while Jellyfin reads the same paths as libraries.
+MediaForge kann dann nach `/media/Movies` und `/media/TV` schreiben, während Jellyfin
+diese Verzeichnisse als Bibliotheken einliest. Die tatsächlichen Zielordner werden in MediaForge konfiguriert.
 
-## Installation
+## Installation und Update
 
-### 1. Install the MediaForge module
+### 1. MediaForge-Modul installieren
 
-Copy the `MediaForge.Module/mediaforge_jellyfin_connector` directory to
-`~/.mediaforge/thirdparties/mediaforge_jellyfin_connector` and restart
-MediaForge. In **Module Manager > Module Settings**, confirm that
-**Jellyfin Connector** is enabled.
+Den Ordner `MediaForge.Module/mediaforge_jellyfin_connector` oder den gleichnamigen
+Ordner aus dem Modul-ZIP nach folgendem Ziel kopieren:
 
-The connector does not need a separate settings page in MediaForge. Its only
-module-specific setting is the enable toggle. The API key is created centrally
-under **Settings > API**. If the module card is missing, verify that
-`~/.mediaforge/thirdparties/mediaforge_jellyfin_connector/__init__.py` exists
-directly and that the module directory is not nested twice.
+```text
+~/.mediaforge/thirdparties/mediaforge_jellyfin_connector/
+```
 
-In MediaForge, open **Settings > API** and create a new scoped key with these
-permissions:
+Dort müssen `__init__.py`, `routes.py` und `operations.py` direkt liegen; den
+Modulordner nicht doppelt verschachteln. MediaForge neu starten und unter
+**Module Manager → Module Settings** prüfen, dass **Jellyfin Connector** aktiviert ist.
+
+Unter **Settings → API** einen Schlüssel mit diesen Berechtigungen erstellen:
 
 ```text
 status:read
@@ -99,176 +126,180 @@ queue:read
 queue:write
 ```
 
-Copy the key immediately; MediaForge displays it only once.
+Den Schlüssel direkt sichern; er wird nur einmal angezeigt. Weitere Hinweise:
+[MediaForge-Modul](MediaForge.Module/README.md).
 
-### 2. Install the Jellyfin plugin from the repository
+### 2. Jellyfin-Plugin installieren
 
-In Jellyfin, open **Dashboard > Plugins > Repositories > New Repository** and
-enter:
+Für eine manuelle Installation `MediaForgeRequests_0.5.0.zip` in einen eigenen
+Pluginordner entpacken, unter Linux beispielsweise:
+
+```text
+/var/lib/jellyfin/plugins/MediaForgeRequests/
+```
+
+Der tatsächliche Pluginpfad hängt von der Jellyfin-Installation ab. Im Zielordner
+müssen `Jellyfin.Plugin.MediaForge.dll` und `meta.json` direkt liegen. Jellyfin neu starten.
+
+Alternativ kann nach Veröffentlichung einer Version das Jellyfin-Repository verwendet werden:
 
 ```text
 Name: MediaForge Requests
 URL:  https://daseric.github.io/Mediaforge-Jellyfin-Connector/manifest.json
 ```
 
-Install **MediaForge Requests** from the catalog and restart Jellyfin. Then
-open **Dashboard > Plugins > My Plugins > MediaForge Requests > Settings**.
-The page title must be **MediaForge Requests Settings** and includes the
-password field **MediaForge API-Key**. Configure:
+Das Repository in Jellyfin unter **Dashboard → Plugins → Repositories** eintragen,
+das Plugin aus dem Katalog installieren und Jellyfin neu starten. Welche Version
+der Feed anbietet, hängt vom zuletzt erfolgreich veröffentlichten Release ab.
 
-- MediaForge URL
-- API key
-- Request or automatic mode
-- Allowed sources
-- Default language and provider
+### 3. Verbindung und Benutzerzugriff konfigurieren
 
-Use **Test saved connection** to verify that the URL, key, scopes, and
-MediaForge module work together.
+Unter **Dashboard → Plugins → My Plugins → MediaForge Requests → Settings**
+die MediaForge-URL, den API-Schlüssel, Freigabemodus, erlaubte Quellen sowie
+Standardsprache und Provider einstellen. **Test saved connection** prüft die
+gespeicherte Verbindung; die Admin-Diagnose zeigt zusätzlich benötigte Fähigkeiten an.
 
-The password field intentionally remains empty after saving. Entering a new
-key replaces the existing one; a separate button is available to remove it.
-Keys stored as plaintext by older plugin versions are migrated to encrypted
-storage once during plugin startup and are then removed from the XML
-configuration.
+Das Passwortfeld bleibt nach dem Speichern leer. Ein neuer Eintrag ersetzt den
+gespeicherten Schlüssel. Der Schlüssel wird verschlüsselt gespeichert und nicht
+an Benutzeroberflächen oder Jellix zurückgegeben.
 
-### 3. Make the page visible to regular users
+**Show in the sidebar for all Jellyfin users** ist standardmäßig aktiviert.
+Bereits geöffnete Jellyfin-Webseiten neu laden. Die Einbindung nutzt bevorzugt
+das optionale File-Transformation-Plugin, sonst eine Anpassung von Jellyfins
+`index.html`. Nach Jellyfin-Webupdates kann ein weiterer Serverneustart nötig sein.
 
-**Show in the sidebar for all Jellyfin users** is enabled by default. Reload
-already open Jellyfin Web clients after changing this setting. If the Jellyfin
-**File Transformation** plugin is installed, its runtime patch is used.
-Otherwise, this plugin modifies Jellyfin's `index.html` as a fallback. Another
-server restart may therefore be required after a Jellyfin Web update.
+### Migration und Sicherung
 
-The **Requests** item is added to the custom section of the hamburger menu and
-is therefore available to all signed-in users. An observer adds it again if
-Jellyfin renders a new navigation drawer during navigation.
+Vor dem Update die Jellyfin-Plugin-Daten und die MediaForge-Konfiguration sichern.
+Die Migration auf Speicherschema 2 legt eine Sicherung `requests.json.v1-backup` an.
+Alte Anfragen und Queue-IDs bleiben erhalten. Historische Freigaben erhalten
+weder nachträgliche Autosync-Abos noch historische Mitteilungen. Alte noch offene
+Anfragen verwenden bei einer neuen Freigabe den neuen Ablauf.
 
-## Custom Jellyfin repository and automatic updates
+Die MediaForge-Datei `jellyfin-connector-receipts.sqlite3` muss ebenfalls gesichert
+werden. Sie enthält die Bestätigungen der Downloadübergaben. Nicht löschen, um
+eine Wiederholung zu erzwingen. In Jellyfin gehören `connector-secret.key` und
+`mediaforge-api-key.bin` gemeinsam in die Sicherung.
 
-The project includes a security-hardened GitHub Actions workflow. Each new
-version tag runs tests and dependency audits, creates both ZIP archives,
-publishes a GitHub Release, and deploys the current `manifest.json` to GitHub
-Pages. Third-party actions are pinned to full commit SHAs, Python test
-dependencies are pinned by version and hash, and NuGet dependencies are
-restored in locked mode.
+## Optional: Jellix
 
-One-time setup:
+Die bestehende Protokoll-v1-Integration mit `Jellix-for-Jellyfin` bleibt erhalten.
+Jellix entdeckt nach Installation beider Jellyfin-Plugins und einem Neustart die
+Bridge `Jellyfin.Plugin.MediaForge.Integration.JellixBridge`.
 
-1. Push this directory to a GitHub repository.
-2. In **Settings > Pages > Build and deployment**, select **GitHub Actions** as
-   the source.
-3. In **Settings > Environments > github-pages > Deployment branches and
-   tags**, keep **Selected branches and tags** and add a tag rule named `v*`.
-   This allows version tags to deploy the repository feed without permitting
-   arbitrary refs.
-4. Publish version `0.3.0`:
+Suche, Anfrageerstellung und Status verwenden dieselbe Anwendungslogik wie
+Jellyfin-Web, einschließlich der serverseitigen Benutzerregeln. Es sind weder
+eine gemeinsame Vertrags-DLL noch ein zusätzlicher API-Schlüssel erforderlich.
+Suchauswahlen verwenden kurzlebige, benutzergebundene Einmal-Tokens. Die
+bestehenden Jellix-Protokollfelder bleiben kompatibel; neue Webfunktionen werden
+nicht automatisch zu neuen Bedienelementen im Jellix-Client.
 
-```powershell
-git tag -a v0.3.0 -m "MediaForge Requests 0.3.0"
-git push origin v0.3.0
-```
+## Selbst bauen und testen
 
-After the workflow completes successfully, the Jellyfin feed is available at:
-
-```text
-https://YOUR-GITHUB-USERNAME.github.io/YOUR-REPOSITORY/manifest.json
-```
-
-For a later update, update all version references atomically, review the
-changelog, and push the matching tag:
-
-```powershell
-$nextVersion = Read-Host "Next version (for example 0.3.1)"
-.\scripts\set-version.ps1 -Version $nextVersion
-git add .
-git commit -m "Release $nextVersion"
-git tag -a "v$nextVersion" -m "MediaForge Requests $nextVersion"
-git push origin main "v$nextVersion"
-```
-
-Jellyfin recognizes the newer version during its next plugin update check by
-using the same plugin GUID. The feed intentionally points to the latest release.
-Activating a Jellyfin plugin update normally requires a Jellyfin restart. The
-separately installed MediaForge companion module is also attached to the
-release as a ZIP containing the complete `mediaforge_jellyfin_connector`
-directory, but Jellyfin's plugin updater cannot install that module in
-MediaForge.
-
-The Jellyfin plugin can also be installed manually. Extract
-`dist/MediaForgeRequests_0.3.0.zip` to
-`/var/lib/jellyfin/plugins/MediaForgeRequests/`. The destination directory must
-contain `Jellyfin.Plugin.MediaForge.dll` and `meta.json`.
-
-## Build and release packages
+Im Stammverzeichnis ausführen:
 
 ```powershell
 .\scripts\build.ps1
 ```
 
-If `dotnet` is not available through `PATH`:
+Falls `dotnet` nicht über `PATH` erreichbar ist:
 
 ```powershell
-.\scripts\build.ps1 -DotNet C:\path\to\dotnet.exe
+.\scripts\build.ps1 -DotNet C:\Pfad\zu\dotnet.exe
 ```
 
-The build creates:
+Ergebnis:
 
-- `dist/Jellyfin.Plugin.MediaForge.dll`
-- `dist/MediaForgeRequests_0.3.0.zip`
-- `dist/mediaforge_jellyfin_connector_0.3.0.zip`
-- `dist/SHA256SUMS.txt`
+```text
+dist/Jellyfin.Plugin.MediaForge.dll
+dist/MediaForgeRequests_0.5.0.zip
+dist/mediaforge_jellyfin_connector_0.5.0.zip
+dist/SHA256SUMS.txt
+```
 
-Remove all generated build output, repository manifests, and local test caches
-before committing source files:
+Die Tests und Metadatenprüfung lassen sich separat ausführen:
 
 ```powershell
-.\scripts\clean.ps1
+.\scripts\validate-release.ps1 -Tag v0.5.0
+dotnet restore Tests/Connector.SecurityTests/Connector.SecurityTests.csproj --locked-mode
+dotnet run --project Tests/Connector.SecurityTests/Connector.SecurityTests.csproj -c Release --no-restore
+python -m pip install --require-hashes -r Tests/requirements-ci.txt
+python -m unittest discover -s Tests -p "test_*.py"
+ruff check MediaForge.Module Tests
+node --check Jellyfin.Plugin.MediaForge/Web/requests.js
 ```
 
-## Security and operation
+Generierte Builddateien können mit `scripts/clean.ps1` entfernt werden.
 
-- Regular users cannot read plugin settings or the MediaForge key.
-  Administrator endpoints use Jellyfin's `RequiresElevation` policy.
-- The API key is stored with AES-256-GCM encryption. On Unix, the key and
-  secret files are additionally restricted to mode `0600`. Backups must include
-  both `connector-secret.key` and `mediaforge-api-key.bin`.
-- The MediaForge module accepts only MediaForge API keys and requires the
-  appropriate scope for each endpoint.
-- Catalog URLs are authorized server-side for each Jellyfin user for only
-  30 minutes. Modified URLs, URLs authorized for another user, and URLs not
-  returned by a MediaForge search are rejected. The MediaForge module also
-  validates them against MediaForge's provider registry.
-- Search, detail, and download endpoints are rate-limited per user. Payloads,
-  response sizes, and field lengths are also restricted.
-- The connector never logs API keys or MediaForge response bodies. `X-Api-Key`
-  is explicitly redacted from HTTP client logging. External error messages are
-  replaced with fixed, non-sensitive messages before they are displayed or
-  stored.
-- The Jellyfin browser never loads posters directly from third-party sources.
-  Jellyfin fetches them server-side through MediaForge's allowlisted and
-  SSRF-protected image proxy without exposing either API token in a URL.
-- Existing-content decisions are made from Jellyfin's library, not from paths
-  or download flags reported by MediaForge. Matching uses provider IDs where
-  available and Jellyfin's normalized name/original-title search with
-  conservative year and remake handling. The decision is recalculated on the
-  server immediately before a request is stored and again when an administrator
-  approves a pending request.
-- The number of open requests is limited per user.
-- During automatic submission or administrator approval, an atomic status
-  transition prevents the same request from being processed twice.
-- HTTPS is required for connections across host or network boundaries. Use
-  unencrypted HTTP only for loopback or a trusted, non-public container network.
-  Jellyfin's administration interface should also be available over HTTPS.
-- The plugin does not provide media. Only use sources and download content for
-  which you have the required rights.
+## Releases und automatische Pluginupdates
 
-Run the additional security tests with:
+Der Workflow in `.github/workflows/release.yml` startet bei Tags mit dem Muster
+`v*`. Er prüft Versionsangaben, führt Tests und Abhängigkeitsprüfungen aus,
+erstellt beide Installations-ZIPs, veröffentlicht einen GitHub-Release und
+überträgt `manifest.json` an GitHub Pages. Externe Actions sind auf Commit-SHAs
+festgelegt; Python-Abhängigkeiten sind mit Hashes und NuGet-Abhängigkeiten mit
+Lockdateien abgesichert.
+
+GitHub Pages muss für den Actions-Workflow eingerichtet sein. Die
+Deployment-Regeln der Umgebung `github-pages` müssen Versionstags `v*` zulassen.
+Nach erfolgreicher Veröffentlichung liegt der Feed unter:
+
+```text
+https://DEIN-GITHUB-NAME.github.io/DEIN-REPOSITORY/manifest.json
+```
+
+Erst den geprüften Quellstand committen und pushen. Anschließend kann die Version
+veröffentlicht werden, sofern der Tag noch nicht existiert:
 
 ```powershell
-dotnet run --project .\Tests\Connector.SecurityTests\Connector.SecurityTests.csproj --configuration Release
+git tag -a v0.5.0 -m "MediaForge Requests 0.5.0"
+git push origin v0.5.0
 ```
 
-## References
+Bestehende veröffentlichte Tags nicht überschreiben. Für eine spätere Version
+alle Versionsangaben mit `scripts/set-version.ps1` aktualisieren und den
+Changelog prüfen, bevor der passende Tag erstellt wird.
 
-- [Jellyfin-AniWorld-Downloader](https://github.com/SiroxCW/Jellyfin-AniWorld-Downloader)
+Der Jellyfin-Updater aktualisiert nur das Jellyfin-Plugin. Das MediaForge-Modul
+muss separat zuerst aktualisiert werden. Ein Pluginupdate erfordert normalerweise
+einen Jellyfin-Neustart.
+
+## Sicherheit und Betriebsgrenzen
+
+- Admin-Endpunkte verwenden Jellyfins Adminrichtlinie; Benutzer dürfen nur eigene
+  Beteiligungen und Mitteilungen verändern. Bibliothekslinks beachten Benutzerrechte.
+- API-Schlüssel werden mit AES-256-GCM verschlüsselt. Unter Unix erhalten
+  Schlüssel- und Geheimnisdateien zusätzlich Dateirechte `0600`.
+- Quellen-URLs, Berechtigungen und Eingaben werden serverseitig geprüft. Adult-Quellen
+  bleiben für API-Schlüssel durch MediaForges zentrale Altersprüfung gesperrt.
+- API-Schlüssel, interne Dateipfade und ungefilterte MediaForge-Antworten werden
+  nicht an Benutzer ausgeliefert. Poster werden über geprüfte Server-Proxys geladen.
+- Für Verbindungen über Host- oder Netzwerkgrenzen HTTPS verwenden. HTTP nur für
+  Loopback oder ein vertrauenswürdiges, nicht öffentliches Containernetz nutzen.
+- Bei **Übergabe unklar** zuerst abgleichen. Eine ausdrücklich bestätigte erneute
+  Übergabe kann einen doppelten Download erzeugen.
+- Spätere Autosync-Downloads richten sich nach MediaForge. Dessen Autosync-API
+  bietet keine eigene Upscaling-Option pro Abo; die Auswahl gilt für den Erstdownload.
+- Das Plugin stellt keine Medien bereit. Nur Quellen und Inhalte verwenden,
+  für deren Nutzung und Download die erforderlichen Rechte vorliegen.
+
+## Prüfstatus der Version 0.5.0
+
+Lokal erfolgreich geprüft: **40 Python-Tests**, die .NET-Sicherheits- und
+Workflowtests, Release-Build ohne Warnungen, Ruff, JavaScript-Syntax sowie eine
+Browserprüfung der Oberfläche mit simulierten API-Antworten.
+
+Ein vollständiger Live-Test mit MediaForge 1.5 und 1.6, Jellyfin und Jellix steht
+noch aus. Vor produktivem Einsatz insbesondere Providerauflösung, Zielordner,
+Bibliothekszuordnung und das spätere Eintreffen neuer Folgen durch den echten
+Autosync-Dienst prüfen. Das Vorhandensein dieses Quellstands bedeutet nicht,
+dass Version 0.5.0 bereits veröffentlicht oder auf einem Server installiert wurde.
+
+Weitere Details: [Workflow, Migration, Wiederherstellung und API](docs/WORKFLOW.md).
+
+## Lizenz und Referenzen
+
+Lizenz und Hinweise: [LICENSE](LICENSE), [NOTICE](NOTICE).
+
 - [MediaForge](https://github.com/PD-Codes/MediaForge)
+- [Jellyfin-AniWorld-Downloader](https://github.com/SiroxCW/Jellyfin-AniWorld-Downloader)

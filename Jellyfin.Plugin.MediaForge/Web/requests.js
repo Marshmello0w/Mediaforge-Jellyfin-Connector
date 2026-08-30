@@ -8,6 +8,14 @@ export default function (view, params) {
   let mineLoading = false;
   let searchGeneration = 0;
   let detailGeneration = 0;
+  let adminTimer = null;
+  let adminPage = 1;
+  let adminBusy = false;
+  let adminUsers = [];
+  let previousFocus = null;
+  let viewActive = true;
+  let notificationTimer = null;
+  let preferencesDirty = false;
 
   function url(path, query) {
     let value = api.getUrl('MediaForgeRequests/' + path);
@@ -47,7 +55,9 @@ export default function (view, params) {
     view.querySelectorAll('.mf-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
     view.querySelectorAll('.mf-panel').forEach((p) => p.classList.toggle('active', p.dataset.panel === name));
     if (name === 'mine') loadMine();
+    if (adminTimer) { clearTimeout(adminTimer); adminTimer = null; }
     if (name === 'admin') loadAdmin();
+    if (name === 'notifications') loadNotifications();
   }
   view.querySelectorAll('.mf-tab').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
@@ -64,6 +74,7 @@ export default function (view, params) {
       });
       await loadDiscover();
       await detectAdmin();
+      await loadNotifications();
     } catch (error) { notice(error.message, true); }
   }
   async function loadDiscover(retry) {
@@ -94,9 +105,13 @@ export default function (view, params) {
   }
   async function detectAdmin() {
     try {
-      const items = await call('Admin/Requests');
+      const data = await call('Admin/Overview');
       const tab = view.querySelector('[data-tab="admin"]'); tab.style.display = '';
-      renderRequests(q('admin'), items, true);
+      renderRequests(q('admin'), data.items, true);
+      adminUsers = await call('Admin/Users');
+      adminUsers.forEach(user => { for (const name of ['admin-user', 'rule-user']) { const option = document.createElement('option'); option.value = user.id; option.textContent = user.username; q(name).appendChild(option); } });
+      state.sources.forEach(source => { const option = document.createElement('option'); option.value = source.id; option.textContent = source.label; q('admin-source').appendChild(option); });
+      syncRule();
     } catch (_) { /* normal users receive 403 */ }
   }
 
@@ -191,7 +206,7 @@ export default function (view, params) {
     const rawUrl = item.url || item.link || item.series_url;
     if (!rawUrl) return notice('Der Treffer enthält keine MediaForge-URL.', true);
     const generation = ++detailGeneration;
-    state.source = source; state.detail = null; q('overlay').style.display = 'flex'; q('detail-title').textContent = item.title || item.name || 'Laden…'; q('description').textContent = 'Vorhandene Staffeln und Episoden werden geprüft…'; q('plan').innerHTML = '<div class="mf-empty">MediaForge prüft den Bestand…</div>'; q('request').disabled = true;
+    previousFocus = document.activeElement; q('close').focus(); state.source = source; state.detail = null; q('overlay').style.display = 'flex'; q('detail-title').textContent = item.title || item.name || 'Laden…'; q('description').textContent = 'Vorhandene Staffeln und Episoden werden geprüft…'; q('plan').innerHTML = '<div class="mf-empty">MediaForge prüft den Bestand…</div>'; q('request').disabled = true;
     setOptions(q('language'), [state.status.defaultLanguage || 'German Dub'], state.status.defaultLanguage);
     setOptions(q('provider'), [state.status.defaultProvider || 'VOE'], state.status.defaultProvider);
     try {
@@ -228,28 +243,35 @@ export default function (view, params) {
           : 'Alle ' + plan.total_count + ' Episoden sind bereits vorhanden. Es wird nichts eingereiht.';
       }
       q('plan').appendChild(summary);
+      q('request').textContent = !plan.missing_count && !plan.is_movie ? 'Zukünftige Folgen abonnieren' : 'Anfragen';
+      q('request').disabled = !plan.missing_count && plan.is_movie;
+      if (plan.missing_count) {
+        const matching = await call('Requests/Matching', { method: 'POST', body: { ...payload, language: q('language').value, provider: q('provider').value } });
+        if (generation === detailGeneration && matching.exists) q('request').textContent = 'Ebenfalls interessiert';
+      }
+      q('close').focus();
     } catch (error) { if (generation === detailGeneration) { q('description').textContent = error.message; q('plan').innerHTML = ''; } }
   }
   function setOptions(select, values, preferred) { const clean = Array.from(new Set(values.filter(Boolean))); select.innerHTML = ''; clean.forEach((value) => { const option = document.createElement('option'); option.value = value; option.textContent = value; select.appendChild(option); }); if (clean.includes(preferred)) select.value = preferred; }
   q('request').addEventListener('click', async () => {
-    if (!state.detail || !state.detail.plan || !state.detail.plan.missing_count) return;
+    if (!state.detail || !state.detail.plan || (state.detail.plan.is_movie && !state.detail.plan.missing_count)) return;
     const detail = state.detail;
     const generation = detailGeneration;
     q('request').disabled = true;
     try {
-      const payload = { title: detail.title, seriesUrl: detail.seriesUrl, source: detail.source, mediaType: detail.plan.is_movie ? 'movie' : 'series', language: q('language').value, provider: q('provider').value, upscale: q('upscale').checked };
-      const result = await call('Requests/Automatic', { method: 'POST', body: payload });
-      const message = result.status === 'queued' ? 'Nur die fehlenden Inhalte wurden direkt an MediaForge übergeben.' : 'Die Anfrage für die fehlenden Inhalte wurde an den Administrator gesendet.';
+      const payload = { title: detail.title, seriesUrl: detail.seriesUrl, source: detail.source, mediaType: detail.plan.is_movie ? 'movie' : 'series', language: q('language').value, provider: q('provider').value, upscale: q('upscale').checked, subscribeOnly: !detail.plan.missing_count && !detail.plan.is_movie };
+      const result = await call('Requests/Participation', { method: 'POST', body: payload });
+      const message = ['queued', 'available', 'shared'].includes(result.status) ? 'Die Anfrage wurde übernommen. Download und Autosync werden getrennt angezeigt.' : 'Die Anfrage wurde zur Freigabe gespeichert.';
       if (generation === detailGeneration) { closeDetail(); notice(message); switchTab('mine'); } else { notice(message); }
     } catch (error) { notice(error.message, true); } finally { if (generation === detailGeneration) q('request').disabled = false; }
   });
-  function closeDetail() { detailGeneration++; state.detail = null; q('overlay').style.display = 'none'; }
+  function closeDetail() { detailGeneration++; state.detail = null; q('overlay').style.display = 'none'; if (previousFocus && previousFocus.isConnected) previousFocus.focus(); }
   q('close').addEventListener('click', closeDetail); q('cancel').addEventListener('click', closeDetail); q('overlay').addEventListener('click', (e) => { if (e.target === q('overlay')) closeDetail(); });
 
   async function loadMine() {
     if (mineLoading) return;
     mineLoading = true;
-    q('mine').innerHTML = '<div class="mf-empty">Laden…</div>';
+    if (!q('mine').children.length) q('mine').textContent = 'Laden…';
     try {
       const items = await call('Requests/Mine');
       let progress = [];
@@ -261,36 +283,107 @@ export default function (view, params) {
       if (mineTimer) clearTimeout(mineTimer);
       const hasActiveDownload = items.some((item) => item.status === 'queued')
         || progress.some((item) => item.status === 'queued' || item.status === 'running');
-      if (view.isConnected && state.tab === 'mine' && hasActiveDownload) {
+      if (viewActive && view.isConnected && state.tab === 'mine') {
         mineTimer = setTimeout(loadMine, 5000);
       }
     } catch (error) { q('mine').textContent = error.message; }
     finally { mineLoading = false; }
   }
-  async function loadAdmin() { q('admin').innerHTML = '<div class="mf-empty">Laden…</div>'; try { renderRequests(q('admin'), await call('Admin/Requests'), true); } catch (error) { q('admin').textContent = error.message; } }
-  function renderRequests(host, items, admin, progressByQueue) {
-    host.innerHTML = ''; if (!items || !items.length) { host.innerHTML = '<div class="mf-empty">Keine Anfragen vorhanden.</div>'; return; }
-    items.forEach((item) => {
-      const card = document.createElement('article'); card.className = 'mf-request'; const top = document.createElement('div'); top.className = 'mf-requesttop';
-      const left = document.createElement('div'); const title = document.createElement('div'); title.className = 'mf-requesttitle'; title.textContent = item.title; const meta = document.createElement('div'); meta.className = 'mf-meta'; meta.textContent = (admin ? item.username + ' · ' : '') + (item.selectionLabel || ((item.episodes || []).length + ' Episoden')) + ' · ' + item.language + ' · ' + new Date(item.createdUtc).toLocaleString(); left.append(title, meta);
-      const progress = progressByQueue && progressByQueue.get(item.mediaForgeQueueId); const pill = document.createElement('span'); pill.className = 'mf-pill ' + item.status; pill.textContent = progressLabel(progress) || statusLabel(item.status); top.append(left, pill); card.appendChild(top);
-      if (progress) {
-        const box = document.createElement('div'); box.className = 'mf-requestprogress';
-        const track = document.createElement('div'); track.className = 'mf-requestprogresstrack';
-        const fill = document.createElement('div'); fill.className = 'mf-requestprogressfill'; fill.style.width = Math.max(0, Math.min(100, Number(progress.percent) || 0)) + '%'; track.appendChild(fill);
-        const detail = document.createElement('div'); detail.className = 'mf-meta'; detail.textContent = progressDetail(progress); box.append(track, detail); card.appendChild(box);
-      }
-      if (item.error) { const err = document.createElement('div'); err.className = 'mf-notice mf-error'; err.textContent = item.error; card.appendChild(err); }
-      if (admin && (item.status === 'pending' || item.status === 'failed')) { const actions = document.createElement('div'); actions.className = 'mf-actions'; const approve = document.createElement('button'); approve.className = 'mf-btn'; approve.textContent = item.status === 'failed' ? 'Erneut versuchen' : 'Freigeben'; approve.onclick = () => decide(item.id, 'Approve'); const reject = document.createElement('button'); reject.className = 'mf-btn danger'; reject.textContent = 'Ablehnen'; reject.onclick = () => decide(item.id, 'Reject'); actions.append(approve, reject); card.appendChild(actions); }
-      if (!admin && item.status === 'pending') { const actions = document.createElement('div'); actions.className = 'mf-actions'; const withdraw = document.createElement('button'); withdraw.className = 'mf-btn danger'; withdraw.textContent = 'Anfrage zurückziehen'; withdraw.onclick = () => withdrawRequest(item.id); actions.appendChild(withdraw); card.appendChild(actions); }
-      host.appendChild(card);
+  async function loadAdmin() {
+    if (adminBusy) return;
+    if (adminTimer) { clearTimeout(adminTimer); adminTimer = null; }
+    adminBusy = true;
+    try {
+      const query = { page: adminPage, pageSize: 30 };
+      for (const [field, name] of [['query', 'admin-query'], ['userId', 'admin-user'], ['status', 'admin-status'], ['source', 'admin-source'], ['since', 'admin-since']]) if (q(name).value) query[field] = q(name).value;
+      const data = await call('Admin/Overview', { query });
+      renderRequests(q('admin'), data.items, true, null, data.participants);
+      q('admin-counts').textContent = data.pending + ' offen · ' + data.downloading + ' Downloads · ' + data.errors + ' Fehler · ' + data.autosyncPending + ' Autosync-Übernahmen';
+      q('page-label').textContent = 'Seite ' + data.page + ' · ' + data.total + ' Anfragen';
+      q('page-prev').disabled = adminPage <= 1; q('page-next').disabled = adminPage * data.pageSize >= data.total;
+    } catch (error) { notice(error.message, true); }
+    finally { adminBusy = false; if (viewActive && view.isConnected && state.tab === 'admin') adminTimer = setTimeout(loadAdmin, 5000); }
+  }
+  function button(label, action, danger) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'mf-btn ' + (danger ? 'danger' : 'secondary'); b.textContent = label;
+    b.onclick = async () => { b.disabled = true; try { await action(); } catch (error) { notice(error.message, true); } finally { b.disabled = false; } }; return b;
+  }
+  function renderRequests(host, items, admin, progressByQueue, participants) {
+    Array.from(host.childNodes).filter(node => node.nodeType !== 1).forEach(node => node.remove());
+    const wanted = new Set((items || []).map(item => String(item.id)));
+    Array.from(host.children).forEach(node => { if (!wanted.has(node.dataset.id)) node.remove(); });
+    if (!items || !items.length) { host.textContent = 'Keine Anfragen vorhanden.'; return; }
+    items.forEach(item => {
+      const progress = progressByQueue && progressByQueue.get(item.mediaForgeQueueId);
+      const people = participants && participants[item.id] || [];
+      const signature = JSON.stringify([item, progress, people]);
+      const existing = Array.from(host.children).find(node => node.dataset.id === String(item.id));
+      if (existing && existing.dataset.signature === signature) return;
+      const checked = existing && existing.querySelector('input[data-select]')?.checked;
+      const expanded = existing && existing.querySelector('details')?.open;
+      const card = document.createElement('article'); card.className = 'mf-request'; card.dataset.id = item.id; card.dataset.signature = signature;
+      const top = document.createElement('div'); top.className = 'mf-requesttop';
+      const left = document.createElement('div');
+      if (admin && ['pending', 'failed'].includes(item.status)) { const check = document.createElement('input'); check.type = 'checkbox'; check.dataset.select = item.id; check.checked = !!checked; check.setAttribute('aria-label', item.title + ' auswählen'); left.appendChild(check); }
+      const title = document.createElement('strong'); title.textContent = item.title; left.appendChild(title);
+      const meta = document.createElement('div'); meta.className = 'mf-meta'; meta.textContent = (admin ? item.username + ' · ' : '') + (item.selectionLabel || 'Serien-Abo') + ' · ' + item.language + ' · ' + new Date(item.createdUtc).toLocaleString(); left.appendChild(meta);
+      if (admin && people.length > 1) { const names = document.createElement('div'); names.className = 'mf-meta'; names.textContent = 'Beteiligte: ' + people.map(p => p.username).join(', '); left.appendChild(names); }
+      const pill = document.createElement('span'); pill.className = 'mf-pill ' + item.status; pill.textContent = progressLabel(progress) || statusLabel(item.status); top.append(left, pill); card.appendChild(top);
+      const percent = progress ? progress.percent : item.progress;
+      if (percent != null) { const bar = document.createElement('progress'); bar.max = 100; bar.value = Math.max(0, Math.min(100, Number(percent) || 0)); bar.setAttribute('aria-label', 'Downloadfortschritt'); bar.style.width = '100%'; card.appendChild(bar); }
+      if (item.autosyncRequested) { const sync = document.createElement('div'); sync.className = 'mf-notice'; sync.textContent = item.autosyncJobId ? (item.autosyncRestricted ? 'Vorhandenes Autosync-Abo pausiert oder eingeschränkt; Einstellungen beibehalten.' : 'Autosync eingerichtet – neue Folgen werden automatisch nachgezogen.') : (item.autosyncError || 'Autosync wird nach der Freigabe eingerichtet.'); card.appendChild(sync); }
+      if (item.error) { const error = document.createElement('div'); error.className = 'mf-notice mf-error'; error.textContent = item.error; card.appendChild(error); }
+      const history = document.createElement('details'); history.open = !!expanded; const summary = document.createElement('summary'); summary.textContent = 'Verlauf'; history.appendChild(summary);
+      (item.history || []).forEach(event => { const line = document.createElement('div'); line.className = 'mf-meta'; line.textContent = new Date(event.utc).toLocaleString() + ' · ' + statusLabel(event.kind) + (admin ? ' · ' + event.actor : '') + (event.detail ? ' · ' + event.detail : ''); history.appendChild(line); }); card.appendChild(history);
+      const actions = document.createElement('div'); actions.className = 'mf-actions';
+      if (admin && ['pending', 'failed'].includes(item.status)) { actions.append(button('Freigeben / erneut prüfen', () => decide(item.id, 'Approve')), button('Ablehnen', () => decide(item.id, 'Reject'), true)); }
+      if (admin && item.autosyncRequested && !item.autosyncJobId && !['pending','processing','uncertain'].includes(item.status)) actions.appendChild(button('Nur Autosync erneut versuchen', () => recover(item.id, 'autosync')));
+      if (admin && item.status === 'uncertain') { actions.append(button('Übergabe abgleichen', () => recover(item.id, 'reconcile')), button('Erneut senden…', async () => { if (window.confirm('MediaForge könnte diesen Download bereits angenommen haben. Erneutes Senden kann doppelte Downloads erzeugen. Trotzdem erneut senden?')) await recover(item.id, 'reconcile', true); }, true)); }
+      if (admin && ['partial','cancelled'].includes(item.status)) actions.appendChild(button('Fehlende Inhalte erneut prüfen', () => recover(item.id, 'missing')));
+      if (!admin && item.status === 'pending') actions.appendChild(button('Beteiligung zurückziehen', () => withdrawRequest(item.id), true));
+      if (!admin && item.status === 'available') actions.appendChild(button('In Jellyfin öffnen', async () => { const data = await call('Requests/' + item.id + '/Library'); if (!data.itemId) throw new Error('Kein für dich zugänglicher Bibliothekseintrag gefunden.'); window.location.hash = '#/details?id=' + encodeURIComponent(data.itemId) + (typeof api.serverId === 'function' ? '&serverId=' + encodeURIComponent(api.serverId()) : ''); }));
+      card.appendChild(actions); if (existing) existing.replaceWith(card); else host.appendChild(card);
     });
   }
-  async function decide(id, action) { try { await call('Admin/Requests/' + id + '/' + action, { method: 'POST', body: action === 'Reject' ? { reason: 'Vom Administrator abgelehnt.' } : {} }); await loadAdmin(); } catch (error) { notice(error.message, true); } }
-  async function withdrawRequest(id) { if (!window.confirm('Diese noch nicht freigegebene Anfrage zurückziehen?')) return; try { await call('Requests/' + id, { method: 'DELETE' }); await loadMine(); } catch (error) { notice(error.message, true); } }
+  async function decide(id, action) {
+    const reason = action === 'Reject' ? window.prompt('Ablehnungsgrund (optional):', '') : '';
+    if (reason === null) return;
+    await call('Admin/Requests/' + id + '/' + action, { method: 'POST', body: action === 'Reject' ? { reason } : {} }); await loadAdmin();
+  }
+  async function recover(id, action, confirmPossibleDuplicate = false) { await call('Admin/Requests/' + id + '/Recovery', { method: 'POST', body: { action, confirmPossibleDuplicate } }); await loadAdmin(); }
+  async function withdrawRequest(id) { if (!window.confirm('Deine noch nicht freigegebene Beteiligung zurückziehen?')) return; await call('Requests/' + id, { method: 'DELETE' }); await loadMine(); }
+  async function loadNotifications() {
+    clearTimeout(notificationTimer);
+    try {
+      const data = await call('Notifications'); q('unread').textContent = data.unread ? '(' + data.unread + ')' : '';
+      const host = q('notifications'); host.replaceChildren();
+      if (!data.items.length) host.textContent = 'Keine Mitteilungen vorhanden.';
+      data.items.forEach(item => { const card = document.createElement('article'); card.className = 'mf-request'; const text = document.createElement('div'); text.textContent = item.message; const date = document.createElement('div'); date.className = 'mf-meta'; date.textContent = new Date(item.createdUtc).toLocaleString(); card.append(text, date); if (!item.readUtc) card.appendChild(button('Als gelesen markieren', async () => { await call('Notifications/Read', { method: 'POST', body: { id: item.id } }); await loadNotifications(); })); host.appendChild(card); });
+      if (!preferencesDirty) { q('notify-decisions').checked = data.preferences.decisions; q('notify-availability').checked = data.preferences.availability; q('notify-episodes').value = data.preferences.newEpisodes; }
+    } catch (error) { notice(error.message, true); }
+    finally { if (viewActive && view.isConnected) notificationTimer = setTimeout(loadNotifications, 30000); }
+  }
+  function syncRule() { const user = adminUsers.find(u => u.id === q('rule-user').value); if (!user) return; q('rule-mode').value = user.rule.approvalMode; q('rule-limit').value = user.rule.maxOpenRequests || ''; q('rule-subscribe').checked = user.rule.allowSubscriptions; }
+  q('rule-user').addEventListener('change', syncRule);
+  q('notification-form').addEventListener('change', () => { preferencesDirty = true; });
+  q('rule-form').addEventListener('submit', async event => { event.preventDefault(); try { const rule = { approvalMode: q('rule-mode').value, maxOpenRequests: q('rule-limit').value ? Number(q('rule-limit').value) : null, allowSubscriptions: q('rule-subscribe').checked }; await call('Admin/Users/' + q('rule-user').value + '/Rule', { method: 'PUT', body: rule }); adminUsers.find(u => u.id === q('rule-user').value).rule = rule; notice('Benutzerregel gespeichert.'); } catch (error) { notice(error.message, true); } });
+  q('notification-form').addEventListener('submit', async event => { event.preventDefault(); try { await call('Notifications/Preferences', { method: 'PUT', body: { decisions: q('notify-decisions').checked, availability: q('notify-availability').checked, newEpisodes: q('notify-episodes').value } }); notice('Benachrichtigungen gespeichert.'); } catch (error) { notice(error.message, true); } });
+  q('read-all').addEventListener('click', async () => { try { await call('Notifications/Read', { method: 'POST', body: { id: 'all' } }); await loadNotifications(); } catch (error) { notice(error.message, true); } });
+  q('admin-filter').addEventListener('submit', event => { event.preventDefault(); adminPage = 1; loadAdmin(); });
+  q('page-prev').onclick = () => { adminPage = Math.max(1, adminPage - 1); loadAdmin(); }; q('page-next').onclick = () => { adminPage++; loadAdmin(); };
+  async function batch(action) { const ids = Array.from(q('admin').querySelectorAll('input[data-select]:checked')).map(n => Number(n.dataset.select)); if (!ids.length) return notice('Bitte Anfragen auswählen.', true); const reason = action === 'reject' ? window.prompt('Ablehnungsgrund:', '') : ''; if (reason === null) return; q('batch-approve').disabled = true; q('batch-reject').disabled = true; try { const result = await call('Admin/Batch', { method: 'POST', body: { ids, action, reason } }); const failures = result.results.filter(r => !r.ok); notice(failures.length ? failures.map(r => '#' + r.id + ': ' + (r.error || r.status)).join(' · ') : 'Auswahl verarbeitet.', !!failures.length); await loadAdmin(); } catch (error) { notice(error.message, true); } finally { q('batch-approve').disabled = false; q('batch-reject').disabled = false; } }
+  q('batch-approve').onclick = () => batch('approve'); q('batch-reject').onclick = () => batch('reject');
+  q('diagnostics').onclick = async () => { try { const data = await call('Admin/Diagnostics'); const host = q('diagnostic-result'); host.hidden = false; host.textContent = 'Plugin: ' + data.pluginVersion + ' · Verbindung: ' + (data.connection.healthy ? 'OK' : 'nicht verfügbar') + ' · Modul: ' + (data.module?.version || 'unbekannt') + ' · Fähigkeiten: ' + (data.module?.capabilities || []).join(', ') + ' · Berechtigungen: ' + JSON.stringify(data.module?.permissions || {}) + ((data.module?.capabilities || []).includes('autosync') ? '' : ' · MediaForge-Modul für Autosync aktualisieren.'); } catch (error) { notice(error.message, true); } };
+  view.addEventListener('keydown', event => {
+    if (q('overlay').style.display !== 'flex') return;
+    if (event.key === 'Escape') { event.preventDefault(); closeDetail(); }
+    if (event.key === 'Tab') { const nodes = Array.from(q('overlay').querySelectorAll('button:not(:disabled),select,input')).filter(n => !n.hidden); const first = nodes[0], last = nodes[nodes.length - 1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); } }
+  });
+  view.addEventListener('viewhide', () => { viewActive = false; clearTimeout(mineTimer); clearTimeout(adminTimer); clearTimeout(notificationTimer); });
+  view.addEventListener('viewshow', () => { viewActive = true; if (state.tab === 'mine') loadMine(); if (state.tab === 'admin') loadAdmin(); loadNotifications(); });
   function progressLabel(progress) { if (!progress) return ''; return ({ queued: 'Wartet auf Download', running: 'Wird heruntergeladen', completed: 'Download fertig', partial: 'Teilweise fertig', failed: 'Download fehlgeschlagen', cancelled: 'In MediaForge abgebrochen' })[progress.status] || ''; }
   function progressDetail(progress) { const phase = ({ download: 'Download', ffmpeg: 'Verarbeitung' })[progress.phase] || 'Download'; const episodes = progress.total_episodes > 1 ? ' · ' + progress.current_episode + '/' + progress.total_episodes + ' Episoden' : ''; return phase + ': ' + Math.round(Number(progress.percent) || 0) + '%' + episodes; }
-  function statusLabel(status) { return ({ pending: 'Ausstehend', processing: 'Wird übergeben', queued: 'In MediaForge', completed: 'Download fertig', available: 'Bereits in Jellyfin vorhanden', partial: 'Teilweise fertig', cancelled: 'Außerhalb von Jellyfin abgebrochen', rejected: 'Abgelehnt', withdrawn: 'Zurückgezogen', failed: 'Fehlgeschlagen' })[status] || status; }
+  function statusLabel(status) { return ({ approved: 'Freigegeben', running: 'Download läuft', requested: 'Angefragt', shared: 'Gemeinsame Anfrage', uncertain: 'Übergabe unklar', 'autosync-ready': 'Autosync eingerichtet', pending: 'Ausstehend', processing: 'Wird übergeben', queued: 'In MediaForge', completed: 'Download fertig', available: 'Bereits in Jellyfin vorhanden', partial: 'Teilweise fertig', cancelled: 'Außerhalb von Jellyfin abgebrochen', rejected: 'Abgelehnt', withdrawn: 'Zurückgezogen', failed: 'Fehlgeschlagen' })[status] || status; }
   q('refresh-mine').addEventListener('click', loadMine); q('refresh-admin').addEventListener('click', loadAdmin);
   boot();
 }

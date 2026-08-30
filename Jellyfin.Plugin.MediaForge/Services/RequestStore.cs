@@ -8,7 +8,7 @@ namespace Jellyfin.Plugin.MediaForge.Services;
 /// single locked document avoids shipping another native SQLite runtime into
 /// Jellyfin while still providing durable state across server restarts.
 /// </summary>
-public sealed class RequestStore
+public sealed partial class RequestStore
 {
     private const int MaxStoredRequests = 20_000;
     private const long MaxStoreBytes = 64L * 1024 * 1024;
@@ -57,14 +57,16 @@ public sealed class RequestStore
             var duplicate = _document.Requests.LastOrDefault(item =>
                 item.UserId == userId
                 && item.SeriesUrl == request.SeriesUrl
-                && item.EpisodesJson == episodesJson
+                && SameOptions(item, request)
+                && !item.WithdrawnByOwner
+                && (item.SelectionEpisodes.Count > 0 ? item.SelectionEpisodes : item.Episodes).ToHashSet(StringComparer.Ordinal).SetEquals(request.Episodes)
                 && IsOpen(item));
             if (duplicate is not null)
             {
                 return new AddRequestResult(null, Clone(duplicate), false, false);
             }
 
-            if (_document.Requests.Count(item => item.UserId == userId && IsOpen(item)) >= maxOpen)
+            if (_document.Requests.Count(item => item.UserId == userId && !item.WithdrawnByOwner && IsOpen(item)) >= maxOpen)
             {
                 return new AddRequestResult(null, null, true, false);
             }
@@ -92,8 +94,11 @@ public sealed class RequestStore
                 Upscale = request.Upscale,
                 Status = initialStatus,
                 CreatedUtc = DateTime.UtcNow,
+                SelectionEpisodes = request.Episodes.ToList(),
             };
             document.Requests.Add(item);
+            PrepareSharing(document, item);
+            RecordEvent(document, item, "requested", username);
             await SaveLockedAsync(document, cancellationToken).ConfigureAwait(false);
             _document = document;
             return new AddRequestResult(Clone(item), null, false, false);
@@ -113,7 +118,7 @@ public sealed class RequestStore
         try
         {
             return _document.Requests
-                .Where(item => item.UserId == userId)
+                .Where(item => item.UserId == userId && !item.WithdrawnByOwner)
                 .OrderByDescending(item => item.Id)
                 .Take(Math.Clamp(limit, 1, 500))
                 .Select(item => Clone(item)!)
@@ -220,6 +225,8 @@ public sealed class RequestStore
             item.MediaType = mediaType;
             item.SelectionLabel = selectionLabel;
             item.EpisodesJson = JsonSerializer.Serialize(episodes);
+            item.SelectionEpisodes = episodes.ToList();
+            PrepareSharing(document, item);
             await SaveLockedAsync(document, cancellationToken).ConfigureAwait(false);
             _document = document;
             return true;
@@ -244,6 +251,12 @@ public sealed class RequestStore
             var document = CloneDocument();
             var item = document.Requests.First(candidate => candidate.Id == id);
             ApplyDecision(item, RequestStatuses.Rejected, decidedBy, null, reason);
+            RecordEvent(document, item, RequestStatuses.Rejected, decidedBy);
+            foreach (var follower in document.Requests.Where(r => r.Status == RequestStatuses.Pending && r.Episodes.Count == 0 && r.SharedRequestIds.Contains(id)))
+            {
+                ApplyDecision(follower, RequestStatuses.Rejected, decidedBy, null, reason);
+                RecordEvent(document, follower, RequestStatuses.Rejected, decidedBy);
+            }
             await SaveLockedAsync(document, cancellationToken).ConfigureAwait(false);
             _document = document;
             return true;
@@ -276,7 +289,13 @@ public sealed class RequestStore
 
             var document = CloneDocument();
             var item = document.Requests.First(candidate => candidate.Id == id);
-            ApplyDecision(item, RequestStatuses.Withdrawn, username, null, null);
+            if (document.Requests.Any(other => other.Status != RequestStatuses.Withdrawn && other.SharedRequestIds.Contains(id)))
+            {
+                item.WithdrawnByOwner = true;
+                item.AutosyncRequested = false;
+                item.History.Add(new RequestEvent("participation-withdrawn", DateTime.UtcNow, username));
+            }
+            else ApplyDecision(item, RequestStatuses.Withdrawn, username, null, null);
             await SaveLockedAsync(document, cancellationToken).ConfigureAwait(false);
             _document = document;
             return WithdrawRequestResult.Withdrawn;
@@ -312,6 +331,12 @@ public sealed class RequestStore
                     continue;
                 }
 
+                if (queueStatus == "running" && !item.History.Any(e => e.Kind == "running"))
+                {
+                    RecordEvent(document, item, "running", "MediaForge");
+                    changed = true;
+                }
+
                 var (status, error) = queueStatus switch
                 {
                     RequestStatuses.Completed => (RequestStatuses.Completed, (string?)null),
@@ -327,6 +352,7 @@ public sealed class RequestStore
 
                 item.Status = status;
                 item.Error = error;
+                RecordEvent(document, item, status, "MediaForge");
                 changed = true;
             }
 
@@ -361,6 +387,24 @@ public sealed class RequestStore
             var document = CloneDocument();
             var item = document.Requests.First(candidate => candidate.Id == id);
             ApplyDecision(item, status, decidedBy, queueId, error);
+            if (status is RequestStatuses.Queued or RequestStatuses.Available && !item.History.Any(e => e.Kind == "approved"))
+                RecordEvent(document, item, "approved", decidedBy);
+            RecordEvent(document, item, status, decidedBy);
+            if (status is RequestStatuses.Queued or RequestStatuses.Available && item.AutosyncRequested && item.AutosyncStatus == "none")
+            {
+                item.AutosyncStatus = "pending";
+                item.AutosyncNextAttemptUtc = DateTime.UtcNow;
+            }
+            if (decidedBy != "automatic" && status is RequestStatuses.Queued or RequestStatuses.Available)
+            {
+                foreach (var follower in document.Requests.Where(r => r.Status == RequestStatuses.Pending && r.Episodes.Count == 0
+                    && r.SharedRequestIds.Contains(id) && r.SharedRequestIds.All(sharedId => document.Requests.Any(parent => parent.Id == sharedId
+                        && parent.Status is RequestStatuses.Queued or RequestStatuses.Completed or RequestStatuses.Available))))
+                {
+                    follower.Status = RequestStatuses.Shared; follower.DecidedBy = decidedBy; follower.DecidedUtc = DateTime.UtcNow;
+                    RecordEvent(document, follower, RequestStatuses.Shared, decidedBy);
+                }
+            }
             await SaveLockedAsync(document, cancellationToken).ConfigureAwait(false);
             _document = document;
         }
@@ -386,11 +430,21 @@ public sealed class RequestStore
 
             var loaded = JsonSerializer.Deserialize<StoreDocument>(File.ReadAllText(_path), _jsonOptions)
                 ?? new StoreDocument();
+            if (loaded.SchemaVersion > 2) throw new InvalidOperationException("Request store was written by a newer plugin; restore a compatible backup before downgrading.");
+            if (loaded.SchemaVersion < 2)
+            {
+                if (!File.Exists(_path + ".v1-backup")) File.Copy(_path, _path + ".v1-backup", overwrite: false);
+                loaded.SchemaVersion = 2;
+            }
             loaded.Requests ??= [];
+            foreach (var item in loaded.Requests)
+                if (Guid.TryParse(item.UserId, out var userId)) item.UserId = userId.ToString("N");
             foreach (var interrupted in loaded.Requests.Where(item => item.Status == RequestStatuses.Processing))
             {
-                interrupted.Status = RequestStatuses.Failed;
-                interrupted.Error = "Die Übergabe wurde durch einen Jellyfin-Neustart unterbrochen und kann erneut versucht werden.";
+                interrupted.Status = interrupted.HandoffStarted ? RequestStatuses.Uncertain : RequestStatuses.Failed;
+                interrupted.Error = interrupted.HandoffStarted
+                    ? "Die Download-Übergabe ist unklar. Vor einer Wiederholung muss sie abgeglichen werden."
+                    : "Die Übergabe wurde durch einen Jellyfin-Neustart unterbrochen und kann erneut versucht werden.";
                 interrupted.DecidedUtc = DateTime.UtcNow;
                 interrupted.DecidedBy = "recovery";
             }
@@ -418,6 +472,7 @@ public sealed class RequestStore
 
     private async Task SaveLockedAsync(StoreDocument document, CancellationToken cancellationToken)
     {
+        document.SchemaVersion = 2;
         var directory = Path.GetDirectoryName(_path)
             ?? throw new InvalidOperationException("Request store directory is unavailable.");
         var temporary = Path.Combine(directory, Path.GetRandomFileName());
@@ -470,7 +525,8 @@ public sealed class RequestStore
         }
 
         var removable = document.Requests
-            .Where(item => !IsOpen(item))
+            .Where(item => !IsOpen(item) && item.AutosyncStatus != "pending" && item.AutosyncStatus != "retry" && item.AutosyncStatus != "ready"
+                && !document.Requests.Any(other => other.SharedRequestIds.Contains(item.Id)))
             .OrderBy(item => item.Id)
             .Take(excess)
             .Select(item => item.Id)
@@ -479,7 +535,7 @@ public sealed class RequestStore
     }
 
     private static bool IsOpen(MediaRequest item)
-        => item.Status is RequestStatuses.Pending or RequestStatuses.Processing or RequestStatuses.Queued;
+        => item.Status is RequestStatuses.Pending or RequestStatuses.Processing or RequestStatuses.Queued or RequestStatuses.Uncertain or RequestStatuses.Shared;
 
     private static void ApplyDecision(MediaRequest item, string status, string decidedBy, long? queueId, string? error)
     {
@@ -492,6 +548,11 @@ public sealed class RequestStore
 
     private sealed class StoreDocument
     {
+        public int SchemaVersion { get; set; } = 1;
+        public List<RequestEvent> Audit { get; set; } = [];
+        public List<UserNotification> Notifications { get; set; } = [];
+        public Dictionary<string, UserRequestRule> UserRules { get; set; } = new();
+        public Dictionary<string, NotificationPreferences> NotificationPreferences { get; set; } = new();
         public long NextId { get; set; } = 1;
 
         public List<MediaRequest> Requests { get; set; } = [];

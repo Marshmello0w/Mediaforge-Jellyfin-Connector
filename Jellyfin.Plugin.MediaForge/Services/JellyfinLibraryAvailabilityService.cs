@@ -12,10 +12,12 @@ public sealed class JellyfinLibraryAvailabilityService
 {
     private const int MaximumTitleCandidates = 200;
     private readonly ILibraryManager _libraryManager;
+    private readonly IUserManager? _users;
 
-    public JellyfinLibraryAvailabilityService(ILibraryManager libraryManager)
+    public JellyfinLibraryAvailabilityService(ILibraryManager libraryManager, IUserManager? users = null)
     {
         _libraryManager = libraryManager;
+        _users = users;
     }
 
     public LibraryAvailability GetAvailability(LibraryMediaIdentity identity)
@@ -63,6 +65,31 @@ public sealed class JellyfinLibraryAvailabilityService
         }
 
         return output;
+    }
+
+    public Guid? GetAccessibleItemId(LibraryMediaIdentity identity, Jellyfin.Database.Implementations.Entities.User user)
+        => FindMatches(identity, identity.IsMovie ? BaseItemKind.Movie : BaseItemKind.Series)
+            .FirstOrDefault(item => item.IsVisible(user))?.Id;
+
+    public bool CanAccess(LibraryMediaIdentity identity, string userId)
+    {
+        if (_users is null) return true; // isolated tests; runtime DI supplies IUserManager
+        return Guid.TryParse(userId, out var id) && _users.GetUserById(id) is { } user && GetAccessibleItemId(identity, user).HasValue;
+    }
+
+    public LibraryAvailability GetUserAvailability(LibraryMediaIdentity identity, string userId)
+    {
+        if (_users is null) return GetAvailability(identity);
+        var user = Guid.TryParse(userId, out var id) ? _users.GetUserById(id) : null;
+        if (user is null) return new(false, new HashSet<LibraryEpisodeKey>());
+        var matches = FindMatches(identity, identity.IsMovie ? BaseItemKind.Movie : BaseItemKind.Series).Where(item => item.IsVisible(user)).ToArray();
+        if (identity.IsMovie || matches.Length == 0) return new(matches.Length > 0, new HashSet<LibraryEpisodeKey>());
+        var episodes = _libraryManager.GetItemList(new InternalItemsQuery
+        {
+            Recursive = true, IncludeItemTypes = [BaseItemKind.Episode], AncestorIds = matches.Select(item => item.Id).ToArray(),
+            IsVirtualItem = false, EnableTotalRecordCount = false,
+        }).OfType<Episode>().Where(episode => episode.IsVisible(user));
+        return new(true, BuildEpisodeSet(episodes));
     }
 
     internal static bool ProviderIdsMatch(

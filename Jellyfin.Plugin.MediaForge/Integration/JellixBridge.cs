@@ -276,7 +276,7 @@ public sealed class JellixBridge
     internal static string MapStatus(MediaRequest request)
         => request.Status switch
         {
-            RequestStatuses.Pending or RequestStatuses.Processing => "pending",
+            RequestStatuses.Pending or RequestStatuses.Processing or RequestStatuses.Shared => "pending",
             RequestStatuses.Queued when request.QueueRunning => "downloading",
             RequestStatuses.Queued => "queued",
             RequestStatuses.Completed or RequestStatuses.Available => "available",

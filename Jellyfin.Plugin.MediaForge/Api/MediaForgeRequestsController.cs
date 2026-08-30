@@ -349,7 +349,7 @@ public sealed class MediaForgeRequestsController : ControllerBase
 
         var (_, admin) = CurrentUser();
         var result = await _application.ApproveAsync(id, admin, cancellationToken).ConfigureAwait(false);
-        if (result.Status is RequestStatuses.Queued or RequestStatuses.Available)
+        if (result.Status is RequestStatuses.Queued or RequestStatuses.Available or RequestStatuses.Shared)
         {
             return Ok(result);
         }
@@ -486,7 +486,7 @@ public sealed class MediaForgeRequestsController : ControllerBase
             ?? User.FindFirst("Jellyfin-UserId")?.Value
             ?? User.FindFirst("UserId")?.Value
             ?? name;
-        return (SafeIdentity(id), SafeIdentity(name));
+        return (Guid.TryParse(id, out var userId) ? userId.ToString("N") : SafeIdentity(id), SafeIdentity(name));
     }
 
     private bool Allow(string userId, string operation, int limit)

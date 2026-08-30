@@ -1,14 +1,14 @@
 {
   "category": "General",
-  "changelog": "v0.4.0\n- Add the versioned in-process Jellix bridge for search, submission, status and progress\n- Share request planning, source policy, limits, duplicate checks and persistence between HTTP and Jellix\n- Add user-bound, short-lived one-time selection tokens without exposing MediaForge URLs\n- Add bridge contract, isolation, concurrency and security regression tests",
+  "changelog": "v0.5.0\n- Automatically subscribe approved series to MediaForge AutoSync without changing existing jobs\n- Add durable download receipts and conservative recovery after interrupted handoffs\n- Add background queue/library synchronization, shared requests and per-user rules\n- Add paginated admin overview, batch decisions, recovery actions and diagnostics\n- Add persistent in-plugin notifications and daily episode digests",
   "description": "Searches the movie and TV sources enabled in MediaForge directly from Jellyfin. Users can request downloads; administrators can approve them or enable automatic mode.",
   "guid": "2ea7f67d-8e4d-4c84-bd5a-a5bcd713bb23",
   "name": "MediaForge Requests",
   "overview": "MediaForge search and download requests for all Jellyfin users",
   "owner": "MediaForge Jellyfin Connector contributors",
   "targetAbi": "10.11.0.0",
-  "timestamp": "2026-08-16T00:00:00Z",
-  "version": "0.4.3.0",
+  "timestamp": "2026-08-31T00:00:00Z",
+  "version": "0.5.0.0",
   "status": "Active",
   "autoUpdate": true
 }

@@ -14,7 +14,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
             .AddHttpClient<MediaForgeClient>(client =>
             {
                 client.Timeout = TimeSpan.FromSeconds(90);
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-MediaForge-Requests/0.4.3");
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-MediaForge-Requests/0.5.0");
             })
             .RedactLoggedHeaders(["X-Api-Key"])
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -33,6 +33,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<UserRateLimiter>();
         serviceCollection.AddSingleton<JellyfinLibraryAvailabilityService>();
         serviceCollection.AddSingleton<MediaForgeRequestApplicationService>();
+        serviceCollection.AddHostedService<RequestSynchronizationService>();
         serviceCollection.AddSingleton<Jellyfin.Plugin.MediaForge.Integration.JellixBridge>();
         serviceCollection.AddSingleton(serviceProvider =>
             Plugin.Instance?.Secrets

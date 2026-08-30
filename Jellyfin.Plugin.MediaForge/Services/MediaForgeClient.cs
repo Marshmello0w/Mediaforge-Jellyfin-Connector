@@ -41,6 +41,12 @@ public sealed class MediaForgeClient
     public Task<JsonElement> GetHealthAsync(CancellationToken cancellationToken)
         => SendAsync(HttpMethod.Get, "api/v1/connector/health", null, cancellationToken);
 
+    public Task<JsonElement> EnsureAutosyncAsync(MediaRequest request, CancellationToken token)
+        => SendAsync(HttpMethod.Post, "api/v1/connector/autosync", new { title = request.Title, series_url = request.SeriesUrl, language = request.Language, provider = request.Provider }, token);
+
+    public Task<JsonElement> GetOperationAsync(string operationId, CancellationToken token)
+        => SendAsync(HttpMethod.Get, "api/v1/connector/operations/" + Uri.EscapeDataString(operationId), null, token);
+
     /// <summary>Returns a sanitized connector diagnostic without exposing secrets or upstream bodies.</summary>
     public async Task<MediaForgeConnectionStatus> CheckHealthAsync(CancellationToken cancellationToken)
     {
@@ -183,20 +189,31 @@ public sealed class MediaForgeClient
         }
     }
 
-    public async Task<MediaForgeQueueResult> QueueAsync(MediaRequest request, CancellationToken cancellationToken)
+    public async Task<bool> SupportsDownloadReceiptsAsync(CancellationToken token)
     {
+        var health = await GetHealthAsync(token).ConfigureAwait(false);
+        return health.ValueKind == JsonValueKind.Object && health.TryGetProperty("capabilities", out var capabilities)
+            && capabilities.ValueKind == JsonValueKind.Array
+            && capabilities.EnumerateArray().Any(c => c.ValueKind == JsonValueKind.String && c.GetString() == "download-receipts");
+    }
+
+    public async Task<MediaForgeQueueResult> QueueAsync(MediaRequest request, CancellationToken cancellationToken, bool? supportsReceipts = null)
+    {
+        var body = new Dictionary<string, object?>
+        {
+            ["episodes"] = request.Episodes, ["language"] = request.Language,
+            ["provider"] = request.Provider, ["title"] = request.Title,
+            ["series_url"] = request.SeriesUrl, ["upscale"] = request.Upscale,
+        };
+        // Old modules reject unknown fields. Capability discovery happens
+        // before the persisted handoff is attempted, never retry a write as
+        // a compatibility fallback after an ambiguous response.
+        if (supportsReceipts ?? await SupportsDownloadReceiptsAsync(cancellationToken).ConfigureAwait(false))
+            body["operation_id"] = request.OperationId;
         var response = await SendAsync(
             HttpMethod.Post,
             "api/v1/connector/download",
-            new
-            {
-                episodes = request.Episodes,
-                language = request.Language,
-                provider = request.Provider,
-                title = request.Title,
-                series_url = request.SeriesUrl,
-                upscale = request.Upscale,
-            },
+            body,
             cancellationToken).ConfigureAwait(false);
 
         long? parsedQueueId = null;

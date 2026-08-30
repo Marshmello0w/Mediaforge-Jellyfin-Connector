@@ -25,6 +25,7 @@
     <div class="mf-head"><div><h2 class="mf-title">MediaForge Anfragen</h2><div class="mf-muted">Filme und Serien suchen und für Jellyfin anfragen</div></div><span class="mf-status" data-mf="mode">Laden…</span></div>
     <div data-mf="notice"></div>
     <nav class="mf-tabs">
+      <button class="mf-tab" data-tab="notifications">Mitteilungen <span data-mf="unread"></span></button>
       <button class="mf-tab active" data-tab="search" type="button">Suche</button>
       <button class="mf-tab" data-tab="mine" type="button">Meine Anfragen</button>
       <button class="mf-tab" data-tab="admin" type="button" style="display:none">Admin</button>
@@ -39,11 +40,39 @@
       <div class="mf-results" data-mf="results" hidden></div>
     </section>
     <section class="mf-panel" data-panel="mine"><div class="mf-actions"><button class="mf-btn secondary" data-mf="refresh-mine" type="button">Aktualisieren</button></div><div class="mf-list" data-mf="mine"></div></section>
-    <section class="mf-panel" data-panel="admin"><div class="mf-actions"><button class="mf-btn secondary" data-mf="refresh-admin" type="button">Aktualisieren</button></div><div class="mf-list" data-mf="admin"></div></section>
+    <section class="mf-panel" data-panel="admin">
+      <div data-mf="admin-counts" class="mf-notice" aria-live="polite"></div>
+      <form data-mf="admin-filter" class="mf-actions">
+        <input class="mf-input" data-mf="admin-query" placeholder="Titel suchen" aria-label="Titel suchen" style="width:15rem">
+        <select class="mf-select" data-mf="admin-user" aria-label="Benutzer" style="width:12rem"><option value="">Alle Benutzer</option></select>
+        <select class="mf-select" data-mf="admin-status" aria-label="Status" style="width:12rem"><option value="">Alle Status</option><option value="pending">Ausstehend</option><option value="queued">Download</option><option value="failed">Fehlgeschlagen</option><option value="uncertain">Übergabe unklar</option><option value="available">Verfügbar</option></select>
+        <select class="mf-select" data-mf="admin-source" aria-label="Quelle" style="width:12rem"><option value="">Alle Quellen</option></select>
+        <input class="mf-input" type="date" data-mf="admin-since" aria-label="Anfragen seit" style="width:11rem">
+        <button class="mf-btn" type="submit">Filtern</button>
+      </form>
+      <div class="mf-actions"><button class="mf-btn secondary" data-mf="refresh-admin" type="button">Aktualisieren</button><button class="mf-btn" data-mf="batch-approve">Auswahl freigeben</button><button class="mf-btn danger" data-mf="batch-reject">Auswahl ablehnen</button><button class="mf-btn secondary" data-mf="diagnostics">Diagnose</button></div>
+      <div data-mf="diagnostic-result" class="mf-notice" hidden></div>
+      <div class="mf-list" data-mf="admin" style="margin-top:1rem"></div>
+      <div class="mf-actions"><button class="mf-btn secondary" data-mf="page-prev">Zurück</button><span data-mf="page-label"></span><button class="mf-btn secondary" data-mf="page-next">Weiter</button></div>
+      <details style="margin-top:1rem"><summary>Benutzerregeln</summary><form data-mf="rule-form" class="mf-actions">
+        <select class="mf-select" data-mf="rule-user" aria-label="Benutzer auswählen" style="width:12rem"></select>
+        <select class="mf-select" data-mf="rule-mode" aria-label="Freigabemodus" style="width:15rem"><option value="inherit">Globale Einstellung</option><option value="manual">Immer Adminfreigabe</option><option value="automatic">Automatisch freigeben</option></select>
+        <input class="mf-input" data-mf="rule-limit" type="number" min="1" max="100" placeholder="Globales Limit" aria-label="Maximale offene Anfragen" style="width:11rem">
+        <label><input data-mf="rule-subscribe" type="checkbox" checked> Serien-Abos erlauben</label><button class="mf-btn" type="submit">Regel speichern</button>
+      </form></details>
+    </section>
+    <section class="mf-panel" data-panel="notifications">
+      <div class="mf-actions"><button class="mf-btn secondary" data-mf="read-all">Alle als gelesen markieren</button></div>
+      <div class="mf-list" data-mf="notifications" style="margin-top:1rem"></div>
+      <details style="margin-top:1rem"><summary>Benachrichtigungen einstellen</summary><form data-mf="notification-form" class="mf-actions">
+        <label><input data-mf="notify-decisions" type="checkbox" checked> Freigaben und Ablehnungen</label><label><input data-mf="notify-availability" type="checkbox" checked> Verfügbarkeit</label>
+        <select class="mf-select" data-mf="notify-episodes" aria-label="Neue Folgen" style="width:15rem"><option value="daily">Neue Folgen täglich bündeln</option><option value="immediate">Neue Folgen sofort melden</option><option value="off">Keine Folgemeldungen</option></select><button class="mf-btn" type="submit">Speichern</button>
+      </form></details>
+    </section>
 
-    <div class="mf-overlay" data-mf="overlay" role="dialog" aria-modal="true">
+    <div class="mf-overlay" data-mf="overlay" role="dialog" aria-modal="true" aria-labelledby="mf-detail-heading">
       <div class="mf-dialog">
-        <div class="mf-dialoghead"><strong data-mf="detail-title">Titel</strong><button class="mf-close" data-mf="close" type="button" aria-label="Schließen">×</button></div>
+        <div class="mf-dialoghead"><strong id="mf-detail-heading" data-mf="detail-title">Titel</strong><button class="mf-close" data-mf="close" type="button" aria-label="Schließen">×</button></div>
         <div class="mf-dialogbody">
           <div class="mf-description" data-mf="description"></div>
           <div data-mf="plan"></div>

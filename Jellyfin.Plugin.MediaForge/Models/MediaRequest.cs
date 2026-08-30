@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace Jellyfin.Plugin.MediaForge.Models;
 
 /// <summary>Persistent user request and its MediaForge queue result.</summary>
-public sealed class MediaRequest
+public sealed partial class MediaRequest
 {
     [JsonPropertyName("id")]
     public long Id { get; set; }
@@ -77,11 +77,11 @@ public sealed class MediaRequest
     }
 
     /// <summary>Gets or sets transient synchronized progress for in-process consumers.</summary>
-    [JsonIgnore]
+    [JsonPropertyName("progress")]
     public int? Progress { get; set; }
 
     /// <summary>Gets or sets whether MediaForge reports an actively running queue item.</summary>
-    [JsonIgnore]
+    [JsonPropertyName("queueRunning")]
     public bool QueueRunning { get; set; }
 }
 
@@ -98,4 +98,6 @@ public static class RequestStatuses
     public const string Rejected = "rejected";
     public const string Withdrawn = "withdrawn";
     public const string Failed = "failed";
+    public const string Uncertain = "uncertain";
+    public const string Shared = "shared";
 }

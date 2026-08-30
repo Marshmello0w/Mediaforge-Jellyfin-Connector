@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import re
+import sqlite3
+import threading
 from urllib.parse import parse_qs, quote, urlsplit
 
 from flask import Blueprint, current_app, jsonify, request
@@ -32,6 +35,7 @@ _MAX_URL_LENGTH = 2048
 _MAX_PROGRESS_IDS = 200
 _QUEUE_STATES = {"queued", "running", "completed", "partial", "failed", "cancelled"}
 _PROGRESS_PHASES = {"download", "ffmpeg"}
+_AUTOSYNC_LOCK = threading.Lock()
 
 
 def _without_mediaforge_session_login(view):
@@ -309,6 +313,92 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
 
     bp = Blueprint("mediaforge_jellyfin_connector", __name__)
 
+    def ledger():
+        from ....config import MEDIAFORGE_CONFIG_DIR
+        from .operations import OperationLedger
+        return OperationLedger(MEDIAFORGE_CONFIG_DIR / "jellyfin-connector-receipts.sqlite3")
+
+    def check_source(url):
+        response = current_app.make_response(internal["sources"]())
+        policy = _read_source_policy(response) if response.status_code == 200 else None
+        if policy is None:
+            return jsonify({"error": "source policy unavailable"}), 503
+        site = site_for_url(url)
+        source = next((item for item in policy["sources"] if item["id"].casefold() == str(site).casefold()), None)
+        if source is None or source.get("adult", False) or not source.get("enabled", True):
+            return jsonify({"error": "source not permitted"}), 403
+        return None
+
+    @bp.get("/api/v1/connector/operations/<operation_id>")
+    def api_connector_operation(operation_id):
+        auth_error = guard("queue:read")
+        if auth_error:
+            return auth_error
+        if not re.fullmatch(r"[a-f0-9]{32}", operation_id):
+            return jsonify({"error": "invalid operation"}), 400
+        receipt = ledger()
+        state = receipt.lookup(operation_id)
+        if state["state"] == "uncertain":
+            from ...db import get_queue
+            state = receipt.reconcile(operation_id, get_queue())
+        return jsonify(state)
+
+    @bp.post("/api/v1/connector/autosync")
+    def api_connector_autosync():
+        auth_error = guard("queue:write")
+        if auth_error:
+            return auth_error
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict) or set(body) != {"title", "series_url", "language", "provider"}:
+            return jsonify({"error": "invalid autosync fields"}), 400
+        if (not _is_mediaforge_url(body["series_url"])
+                or not _safe_text(body["title"], 300)
+                or not _safe_text(body["language"], 100)
+                or not _safe_text(body["provider"], 100)):
+            return jsonify({"error": "invalid autosync values"}), 400
+        source_error = check_source(body["series_url"])
+        if source_error:
+            return source_error
+        from ...db import find_autosync_by_url, get_autosync_job
+        # Resolve late: the core registers these routes after third parties.
+        handler = late_internal("api_autosync_create")
+        if handler is None:
+            return jsonify({"error": "autosync unavailable"}), 503
+        # SQLite additionally serializes creates across WSGI processes.
+        with _AUTOSYNC_LOCK, ledger().connect() as lock_db:
+            lock_db.execute("BEGIN IMMEDIATE")
+            job = find_autosync_by_url(body["series_url"])
+            created = False
+            if job is None:
+                # Use the existing series handler (including its age gate) to
+                # reject movie pages instead of trusting a client media type.
+                with current_app.test_request_context("/api/series", query_string={"url": body["series_url"]}, headers={"X-Api-Key": request.headers.get("X-Api-Key", "")}):
+                    detail = current_app.make_response(internal["series"]())
+                    metadata = detail.get_json(silent=True)
+                if detail.status_code != 200 or not isinstance(metadata, dict) or metadata.get("is_movie") is not False:
+                    return jsonify({"error": "a verified series is required"}), 400
+                data = dict(body)
+                data["custom_path_id"] = _default_custom_path_id(body["series_url"])
+                try:
+                    with current_app.test_request_context("/api/autosync", method="POST", json=data, headers={"X-Api-Key": request.headers.get("X-Api-Key", "")}):
+                        response = current_app.make_response(handler())
+                        result = response.get_json(silent=True) or {}
+                    if response.status_code == 200:
+                        job = get_autosync_job(result.get("id"))
+                        created = True
+                    elif response.status_code == 409:
+                        job = find_autosync_by_url(body["series_url"])
+                    else:
+                        return jsonify({"error": "autosync creation failed"}), 502
+                except sqlite3.IntegrityError:
+                    job = find_autosync_by_url(body["series_url"])
+            if not isinstance(job, dict):
+                return jsonify({"error": "autosync confirmation unavailable"}), 503
+            return jsonify({"job_id": job["id"], "created": created,
+                            "enabled": bool(job.get("enabled", 1)),
+                            "on_hold": bool(job.get("on_hold", 0)),
+                            "filtered": bool(job.get("episode_filter"))})
+
     def guard(scope: str):
         if get_setting(enabled_setting_key, "1") != "1":
             return jsonify({"error": "connector disabled"}), 503
@@ -324,6 +414,8 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
                 "ok": True,
                 "module": "mediaforge_jellyfin_connector",
                 "version": module_version,
+                "capabilities": ["autosync", "download-receipts"],
+                "permissions": {scope: check_api_key(scope) is None for scope in ("status:read", "library:read", "queue:read", "queue:write")},
             }
         )
 
@@ -458,6 +550,7 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
             "title",
             "series_url",
             "upscale",
+            "operation_id",
         }:
             return jsonify({"error": "unexpected request fields"}), 400
 
@@ -480,6 +573,10 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
         if "upscale" in body and not isinstance(body["upscale"], bool):
             return jsonify({"error": "invalid upscale flag"}), 400
 
+        operation_id = body.get("operation_id")
+        if operation_id is not None and (not isinstance(operation_id, str) or not re.fullmatch(r"[a-f0-9]{32}", operation_id)):
+            return jsonify({"error": "invalid operation"}), 400
+
         try:
             custom_path_id = _default_custom_path_id(body["series_url"])
         except Exception as exc:  # noqa: BLE001 - never queue to an unknown target
@@ -494,6 +591,16 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
             # only then adds this server-resolved, non-client-controlled value.
             body["custom_path_id"] = custom_path_id
 
+        if operation_id:
+            from ...db import get_queue
+            watermark = max((item["id"] for item in get_queue() if isinstance(item, dict) and type(item.get("id")) is int), default=0)
+            state, confirmed_id = ledger().reserve(operation_id, body, watermark)
+            if state == "confirmed":
+                return jsonify({"queue_id": confirmed_id, "accepted_episode_count": _accepted_episode_count(confirmed_id)})
+            if state != "new":
+                return jsonify({"error": "download handoff is uncertain", "code": state}), 409
+            # Do not pass connector-only fields to core download validation.
+            body.pop("operation_id", None)
         upstream = current_app.make_response(internal["download"]())
         if upstream.status_code != 200:
             return upstream
@@ -504,6 +611,8 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
         if isinstance(queue_id, str) and queue_id.isdecimal():
             queue_id = int(queue_id)
         if isinstance(queue_id, int) and not isinstance(queue_id, bool) and queue_id > 0:
+            if operation_id:
+                ledger().confirm(operation_id, queue_id)
             accepted_count = _accepted_episode_count(queue_id)
             if accepted_count is not None:
                 payload["accepted_episode_count"] = accepted_count
@@ -608,6 +717,8 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
         return handler() if handler is not None else (jsonify({"error": "image proxy unavailable"}), 503)
 
     connector_views = {
+        "mediaforge_jellyfin_connector.api_connector_autosync": api_connector_autosync,
+        "mediaforge_jellyfin_connector.api_connector_operation": api_connector_operation,
         "mediaforge_jellyfin_connector.api_connector_health": api_connector_health,
         "mediaforge_jellyfin_connector.api_connector_sources": api_connector_sources,
         "mediaforge_jellyfin_connector.api_connector_search": api_connector_search,
@@ -624,6 +735,8 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
     scopes = dict.fromkeys(connector_views)
     scopes.update(
         {
+            "mediaforge_jellyfin_connector.api_connector_autosync": "queue:write",
+            "mediaforge_jellyfin_connector.api_connector_operation": "queue:read",
             "mediaforge_jellyfin_connector.api_connector_health": "status:read",
             "mediaforge_jellyfin_connector.api_connector_sources": "library:read",
             "mediaforge_jellyfin_connector.api_connector_search": "library:read",

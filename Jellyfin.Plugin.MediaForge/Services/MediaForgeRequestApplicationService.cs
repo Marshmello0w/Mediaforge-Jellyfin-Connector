@@ -10,7 +10,7 @@ namespace Jellyfin.Plugin.MediaForge.Services;
 /// Shared request application layer used by both the Jellyfin HTTP API and the
 /// optional in-process Jellix bridge.
 /// </summary>
-public sealed class MediaForgeRequestApplicationService
+public sealed partial class MediaForgeRequestApplicationService
 {
     public const int MaxEpisodesPerRequest = 500;
     public const int MaxKnownSources = 32;
@@ -268,6 +268,7 @@ public sealed class MediaForgeRequestApplicationService
         CancellationToken cancellationToken)
     {
         var requests = await _store.ListForUserAsync(userId, limit, cancellationToken).ConfigureAwait(false);
+        AddCachedProgress(requests);
         if (!synchronizeProgress)
         {
             return requests;
@@ -289,8 +290,7 @@ public sealed class MediaForgeRequestApplicationService
             return requests;
         }
 
-        var upstream = await _mediaForge.GetProgressAsync(queueIds, cancellationToken).ConfigureAwait(false);
-        var progress = ReadProgress(upstream, queueIds);
+        var progress = await ReadProgressBatchesAsync(queueIds, cancellationToken).ConfigureAwait(false);
         await _store.SyncQueueStatesAsync(
             userId,
             progress.ToDictionary(item => item.QueueId, item => item.Status),
@@ -399,14 +399,19 @@ public sealed class MediaForgeRequestApplicationService
             throw SourceNotAllowed();
         }
 
+        var rule = await _store.GetRuleAsync(userId, cancellationToken).ConfigureAwait(false);
+        if (request.SubscribeOnly && (!rule.AllowSubscriptions || request.MediaType == "movie"))
+            throw new MediaForgeApplicationException(HttpStatusCode.Forbidden, "Für diesen Inhalt ist kein Serien-Abo erlaubt.");
         var plan = await BuildMissingPlanAsync(userId, request, cancellationToken, requireGrant).ConfigureAwait(false);
+        if (request.SubscribeOnly && (plan.IsMovie || plan.MissingUrls.Count != 0))
+            throw new MediaForgeApplicationException(HttpStatusCode.BadRequest, "Nur eine bereits vollständige Serie kann ohne Erstdownload abonniert werden.");
         if (expectedMediaType is not null
             && !string.Equals(plan.IsMovie ? "movie" : "series", expectedMediaType, StringComparison.Ordinal))
         {
             throw new MediaForgeApplicationException(HttpStatusCode.BadRequest, "Der gefundene Medientyp stimmt nicht mit der Auswahl überein.");
         }
 
-        if (plan.MissingUrls.Count == 0)
+        if (plan.MissingUrls.Count == 0 && !request.SubscribeOnly)
         {
             return new SubmitMediaRequestResult(SubmitDisposition.AlreadyAvailable, null, null, 0);
         }
@@ -418,12 +423,12 @@ public sealed class MediaForgeRequestApplicationService
             Source = request.Source,
             MediaType = plan.IsMovie ? "movie" : "series",
             SelectionLabel = plan.SelectionLabel,
-            Episodes = plan.MissingUrls.ToList(),
+            Episodes = request.SubscribeOnly ? [] : plan.MissingUrls.ToList(),
             Language = request.Language,
             Provider = request.Provider,
             Upscale = request.Upscale,
         };
-        var maxPending = Math.Clamp(config.MaxPendingRequestsPerUser, 1, 100);
+        var maxPending = Math.Clamp(rule.MaxOpenRequests ?? config.MaxPendingRequestsPerUser, 1, 100);
         var addResult = await _store.TryAddAsync(
             userId,
             username,
@@ -448,14 +453,22 @@ public sealed class MediaForgeRequestApplicationService
 
         var stored = addResult.Request
             ?? throw new InvalidOperationException("Request store returned no result.");
-        if (!config.AutoApproveRequests)
+        await _store.UpdateWorkflowAsync(stored.Id, item =>
+        {
+            item.ModernWorkflow = true;
+            item.SubscribeOnly = request.SubscribeOnly;
+            item.AutosyncRequested = !plan.IsMovie && rule.AllowSubscriptions;
+            item.LibraryIdentity = plan.Identity;
+            item.ExpectedEpisodes = request.SubscribeOnly ? [] : plan.ExpectedEpisodes;
+        }, CancellationToken.None).ConfigureAwait(false);
+        if (!(rule.ApprovalMode == "automatic" || (rule.ApprovalMode == "inherit" && config.AutoApproveRequests)))
         {
             return new SubmitMediaRequestResult(SubmitDisposition.Stored, stored, null, maxPending);
         }
 
         var queued = await QueueRequestAsync(stored.Id, "automatic", cancellationToken).ConfigureAwait(false);
         return new SubmitMediaRequestResult(
-            queued.Status == RequestStatuses.Queued ? SubmitDisposition.Queued : SubmitDisposition.QueueFailed,
+            queued.Status is RequestStatuses.Queued or RequestStatuses.Shared or RequestStatuses.Available ? SubmitDisposition.Queued : SubmitDisposition.QueueFailed,
             queued,
             null,
             maxPending);
@@ -467,6 +480,7 @@ public sealed class MediaForgeRequestApplicationService
         CancellationToken cancellationToken,
         bool refreshAvailability = false)
     {
+        var previous = await _store.GetAsync(id, cancellationToken).ConfigureAwait(false);
         if (!await _store.TryClaimAsync(id, cancellationToken).ConfigureAwait(false))
         {
             return await _store.GetAsync(id, cancellationToken).ConfigureAwait(false)
@@ -475,6 +489,16 @@ public sealed class MediaForgeRequestApplicationService
 
         var request = await _store.GetAsync(id, CancellationToken.None).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Claimed request disappeared.");
+        if (previous?.Status == RequestStatuses.Pending && !request.ModernWorkflow)
+        {
+            await _store.UpdateWorkflowAsync(id, row => { row.ModernWorkflow = true; row.AutosyncRequested = row.MediaType == "series"; }, CancellationToken.None).ConfigureAwait(false);
+            request = await _store.GetAsync(id, CancellationToken.None).ConfigureAwait(false) ?? request;
+        }
+        if (previous?.Status == RequestStatuses.Failed && previous.MediaForgeQueueId.HasValue)
+        {
+            await _store.UpdateWorkflowAsync(id, row => { row.HandoffStarted = false; row.OperationId = Guid.NewGuid().ToString("N"); }, CancellationToken.None).ConfigureAwait(false);
+            request = await _store.GetAsync(id, CancellationToken.None).ConfigureAwait(false) ?? request;
+        }
         try
         {
             if (!await SourceIsAllowedAsync(request.Source, request.MediaType, cancellationToken).ConfigureAwait(false))
@@ -482,7 +506,13 @@ public sealed class MediaForgeRequestApplicationService
                 throw SourceNotAllowed();
             }
 
-            if (refreshAvailability)
+            var rule = await _store.GetRuleAsync(request.UserId, cancellationToken).ConfigureAwait(false);
+            if (!rule.AllowSubscriptions)
+            {
+                if (request.SubscribeOnly) throw new MediaForgeApplicationException(HttpStatusCode.Forbidden, "Serien-Abos sind für diesen Benutzer nicht erlaubt.");
+                await _store.UpdateWorkflowAsync(id, item => item.AutosyncRequested = false, CancellationToken.None).ConfigureAwait(false);
+            }
+            if (refreshAvailability && !request.SubscribeOnly)
             {
                 var refreshedPlan = await BuildMissingPlanAsync(
                     request.UserId,
@@ -495,9 +525,17 @@ public sealed class MediaForgeRequestApplicationService
                     },
                     cancellationToken,
                     requireGrant: false).ConfigureAwait(false);
+                await _store.UpdateWorkflowAsync(id, row =>
+                {
+                    row.LibraryIdentity = refreshedPlan.Identity;
+                    row.ExpectedEpisodes = refreshedPlan.ExpectedEpisodes;
+                    row.MediaType = refreshedPlan.IsMovie ? "movie" : "series";
+                    if (refreshedPlan.IsMovie) row.AutosyncRequested = false;
+                }, CancellationToken.None).ConfigureAwait(false);
                 if (refreshedPlan.MissingUrls.Count == 0)
                 {
                     await _store.MarkAvailableAsync(id, decidedBy, CancellationToken.None).ConfigureAwait(false);
+                    await EnsureAutosyncAsync(id, cancellationToken).ConfigureAwait(false);
                     return await _store.GetAsync(id, CancellationToken.None).ConfigureAwait(false) ?? request;
                 }
 
@@ -515,12 +553,32 @@ public sealed class MediaForgeRequestApplicationService
                 request = await _store.GetAsync(id, CancellationToken.None).ConfigureAwait(false) ?? request;
             }
 
-            var queueResult = await _mediaForge.QueueAsync(request, cancellationToken).ConfigureAwait(false);
+            var snapshot = await _store.SnapshotAsync(cancellationToken).ConfigureAwait(false);
+            var sharedEpisodes = snapshot.Where(r => request.SharedRequestIds.Contains(r.Id) && r.Status is not (RequestStatuses.Rejected or RequestStatuses.Withdrawn))
+                .SelectMany(r => r.Episodes).ToHashSet(StringComparer.Ordinal);
+            var ownEpisodes = request.Episodes.Where(e => !sharedEpisodes.Contains(e)).ToArray();
+            await _store.UpdateWorkflowAsync(id, item => item.EpisodesJson = JsonSerializer.Serialize(ownEpisodes), CancellationToken.None).ConfigureAwait(false);
+            request = await _store.GetAsync(id, CancellationToken.None).ConfigureAwait(false) ?? request;
+            if (request.SubscribeOnly || request.Episodes.Count == 0)
+            {
+                if (request.SharedRequestIds.Count > 0)
+                    await _store.UpdateWorkflowAsync(id, item => { item.Status = RequestStatuses.Shared; item.DecidedBy = decidedBy; item.DecidedUtc = DateTime.UtcNow; }, CancellationToken.None).ConfigureAwait(false);
+                else
+                    await _store.MarkAvailableAsync(id, decidedBy, CancellationToken.None).ConfigureAwait(false);
+                await EnsureAutosyncAsync(id, cancellationToken).ConfigureAwait(false);
+                return await _store.GetAsync(id, CancellationToken.None).ConfigureAwait(false) ?? request;
+            }
+
+            var supportsReceipts = await _mediaForge.SupportsDownloadReceiptsAsync(cancellationToken).ConfigureAwait(false);
+            await _store.UpdateWorkflowAsync(id, item => item.HandoffStarted = true, CancellationToken.None).ConfigureAwait(false);
+            var queueResult = await _mediaForge.QueueAsync(request, cancellationToken, supportsReceipts).ConfigureAwait(false);
             var warning = queueResult.AcceptedEpisodeCount.HasValue
                 && queueResult.AcceptedEpisodeCount.Value != request.Episodes.Count
                 ? $"MediaForge hat {queueResult.AcceptedEpisodeCount.Value} von {request.Episodes.Count} geplanten Episoden bestätigt. Die Warteschlange wurde nicht erneut gesendet."
                 : null;
             await _store.MarkQueuedAsync(id, queueResult.QueueId, decidedBy, warning, CancellationToken.None).ConfigureAwait(false);
+            await _store.UpdateWorkflowAsync(id, item => item.MediaForgeQueueIds = [queueResult.QueueId], CancellationToken.None).ConfigureAwait(false);
+            await EnsureAutosyncAsync(id, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is MediaForgeException or MediaForgeApplicationException or HttpRequestException or OperationCanceledException)
         {
@@ -530,7 +588,16 @@ public sealed class MediaForgeRequestApplicationService
                 MediaForgeApplicationException applicationException => applicationException.Message,
                 _ => "Die Übergabe an MediaForge wurde unterbrochen.",
             };
-            await _store.MarkFailedAsync(id, error, decidedBy, CancellationToken.None).ConfigureAwait(false);
+            var latest = await _store.GetAsync(id, CancellationToken.None).ConfigureAwait(false);
+            if (latest?.Status is RequestStatuses.Queued or RequestStatuses.Available or RequestStatuses.Shared)
+            {
+                if (latest.AutosyncRequested && !latest.AutosyncJobId.HasValue)
+                    await _store.UpdateWorkflowAsync(id, item => { item.AutosyncStatus = "retry"; item.AutosyncNextAttemptUtc = DateTime.UtcNow.AddMinutes(1); item.AutosyncError = "Autosync-Übernahme wurde unterbrochen und wird wiederholt."; }, CancellationToken.None).ConfigureAwait(false);
+            }
+            else if (latest?.HandoffStarted == true)
+                await _store.UpdateWorkflowAsync(id, item => { item.Status = RequestStatuses.Uncertain; item.Error = "Die Übergabe ist unklar. Bitte zuerst abgleichen."; }, CancellationToken.None).ConfigureAwait(false);
+            else
+                await _store.MarkFailedAsync(id, error, decidedBy, CancellationToken.None).ConfigureAwait(false);
         }
 
         return await _store.GetAsync(id, CancellationToken.None).ConfigureAwait(false) ?? request;
@@ -582,11 +649,12 @@ public sealed class MediaForgeRequestApplicationService
         var isMovie = detail.TryGetProperty("is_movie", out var movieValue)
             ? movieValue.ValueKind == JsonValueKind.True
             : request.MediaType == "movie";
-        var libraryState = _libraryAvailability.GetAvailability(new LibraryMediaIdentity(
+        var identity = new LibraryMediaIdentity(
             title,
             ReadReleaseYear(detail),
             isMovie,
-            ReadProviderIds(detail)));
+            ReadProviderIds(detail));
+        var libraryState = _libraryAvailability.GetAvailability(identity);
         if (seasonsResponse.ValueKind != JsonValueKind.Object
             || !seasonsResponse.TryGetProperty("seasons", out var seasons)
             || seasons.ValueKind != JsonValueKind.Array)
@@ -609,6 +677,7 @@ public sealed class MediaForgeRequestApplicationService
         var seen = new HashSet<string>(StringComparer.Ordinal);
         HashSet<string>? languages = null;
         var total = 0;
+        var expectedEpisodes = new List<LibraryEpisodeKey>();
         foreach (var season in seasonItems)
         {
             if (season.ValueKind != JsonValueKind.Object)
@@ -649,6 +718,8 @@ public sealed class MediaForgeRequestApplicationService
                     : episode.SeasonNumber.HasValue
                         && episode.EpisodeNumber.HasValue
                         && libraryState.Episodes.Contains(new LibraryEpisodeKey(episode.SeasonNumber.Value, episode.EpisodeNumber.Value));
+                if (episode.SeasonNumber.HasValue && episode.EpisodeNumber.HasValue)
+                    expectedEpisodes.Add(new LibraryEpisodeKey(episode.SeasonNumber.Value, episode.EpisodeNumber.Value));
                 if (alreadyAvailable)
                 {
                     continue;
@@ -693,7 +764,7 @@ public sealed class MediaForgeRequestApplicationService
             missing,
             selectionLabel,
             languages is null ? [] : languages.Order(StringComparer.Ordinal).ToArray(),
-            providers);
+            providers) { Identity = identity, ExpectedEpisodes = expectedEpisodes };
     }
 
     internal static int ReadExpectedEpisodeCount(JsonElement season)
@@ -1155,6 +1226,8 @@ public sealed record MissingMediaPlan(
     IReadOnlyList<string> Languages,
     IReadOnlyDictionary<string, IReadOnlyList<string>> Providers)
 {
+    public LibraryMediaIdentity? Identity { get; init; }
+    public List<LibraryEpisodeKey> ExpectedEpisodes { get; init; } = [];
     public MissingPlanResponse ToResponse()
         => new(
             Title,

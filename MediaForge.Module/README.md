@@ -1,5 +1,11 @@
 # MediaForge Module: Jellyfin Connector
 
+Version 0.5.0 adds idempotent AutoSync registration and durable download handoff
+receipts. Update this module before updating the Jellyfin plugin. Back up
+`jellyfin-connector-receipts.sqlite3` in the MediaForge configuration directory
+alongside the normal MediaForge database. Existing API scopes remain sufficient.
+See [the full workflow and recovery guide](../docs/WORKFLOW.md).
+
 This companion module adds API-key-protected endpoints to MediaForge for
 searching, resolving titles, seasons, and episodes, and queueing downloads. It
 uses the same handlers as the MediaForge Web UI internally, so the sources,

@@ -44,6 +44,7 @@ try
     await TestRequestStoreAsync(testRoot);
     await TestJellixBridgeAsync(testRoot);
     await TestSharedApplicationRulesAsync(testRoot);
+    await WorkflowTests.RunAsync(testRoot);
     Console.WriteLine("All connector security tests passed.");
     return 0;
 }
@@ -105,7 +106,7 @@ static void TestRequestPageContract()
     using var scriptReader = new StreamReader(scriptStream, Encoding.UTF8);
     var script = scriptReader.ReadToEnd();
     Assert(script.Contains("call('Discover')", StringComparison.Ordinal), "The Requests page does not load MediaForge discovery rows.");
-    Assert(script.Contains("call('Requests/Automatic'", StringComparison.Ordinal), "The Requests page does not use server-calculated missing-media requests.");
+    Assert(script.Contains("call('Requests/Participation'", StringComparison.Ordinal), "The Requests page does not use server-calculated shared missing-media requests.");
     Assert(script.Contains("q('discover').hidden = searching", StringComparison.Ordinal), "Search results do not hide the discovery feed.");
     Assert(script.Contains("URL.createObjectURL", StringComparison.Ordinal), "Poster images are not loaded through authenticated blobs.");
     Assert(script.Contains("searchGeneration", StringComparison.Ordinal), "Stale searches can overwrite newer results.");
@@ -1216,6 +1217,16 @@ public sealed record ApplicationTestEnvironment(
 
 public sealed class FakeMediaForgeHandler : HttpMessageHandler
 {
+    public int AutosyncCalls { get; private set; }
+    public int DownloadCalls { get; private set; }
+    public bool LoseDownloadResponse { get; set; }
+    public bool ConfirmOperation { get; set; }
+    public System.Net.HttpStatusCode AutosyncStatus { get; set; } = System.Net.HttpStatusCode.OK;
+    public bool ReportCompleted { get; set; }
+    public bool SupportsReceipts { get; set; }
+    public bool IsMovie { get; set; }
+    public string? LastOperationId { get; private set; }
+    public List<int> ProgressBatchSizes { get; } = [];
     public int RequestCount { get; private set; }
 
     public System.Net.HttpStatusCode HealthStatus { get; set; } = System.Net.HttpStatusCode.OK;
@@ -1232,11 +1243,36 @@ public sealed class FakeMediaForgeHandler : HttpMessageHandler
         }
 
         var path = request.RequestUri?.AbsolutePath ?? string.Empty;
+        if (IsMovie && path == "/api/v1/connector/sources")
+            return Json(System.Net.HttpStatusCode.OK, "{\"sources\":[{\"id\":\"source-a\",\"label\":\"Movies\",\"adult\":false,\"enabled\":true,\"media_types\":[\"movie\"]}]}");
+        if (IsMovie && path == "/api/v1/connector/series")
+            return Json(System.Net.HttpStatusCode.OK, "{\"title\":\"Movie\",\"is_movie\":true,\"year\":2026}");
+        if (path == "/api/v1/connector/autosync")
+        {
+            AutosyncCalls++;
+            return Json(AutosyncStatus, "{\"job_id\":7,\"enabled\":true,\"filtered\":false}");
+        }
+        if (path.StartsWith("/api/v1/connector/operations/", StringComparison.Ordinal))
+            return Json(System.Net.HttpStatusCode.OK, ConfirmOperation ? "{\"state\":\"confirmed\",\"queue_id\":42}" : "{\"state\":\"uncertain\"}");
+        if (path == "/api/v1/connector/download")
+        {
+            DownloadCalls++;
+            using var payload = JsonDocument.Parse(request.Content!.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult());
+            LastOperationId = payload.RootElement.TryGetProperty("operation_id", out var operation) ? operation.GetString() : null;
+            if (LoseDownloadResponse) throw new HttpRequestException("Simulated connection loss after write");
+        }
+        if (path == "/api/v1/connector/progress")
+        {
+            using var payload = JsonDocument.Parse(request.Content!.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult());
+            var ids = payload.RootElement.GetProperty("queue_ids").EnumerateArray().Select(x => x.GetInt64()).ToArray();
+            ProgressBatchSizes.Add(ids.Length);
+            if (ReportCompleted) return Json(System.Net.HttpStatusCode.OK, JsonSerializer.Serialize(new { items = ids.Select(id => new { queue_id = id, status = "completed", percent = 100, current_episode = 1, total_episodes = 1 }) }));
+        }
         return path switch
         {
             "/api/v1/connector/health" => Json(
                 HealthStatus,
-                HealthStatus == System.Net.HttpStatusCode.OK ? "{\"ok\":true}" : "{\"error\":\"safe\"}"),
+                HealthStatus == System.Net.HttpStatusCode.OK ? SupportsReceipts ? "{\"ok\":true,\"capabilities\":[\"autosync\",\"download-receipts\"]}" : "{\"ok\":true}" : "{\"error\":\"safe\"}"),
             "/api/v1/connector/sources" => Json(System.Net.HttpStatusCode.OK, """
                 {
                   "sources": [

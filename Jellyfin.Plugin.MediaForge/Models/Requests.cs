@@ -39,6 +39,7 @@ public sealed class CreateMediaRequest
 /// <summary>Payload for a server-calculated request containing only missing media.</summary>
 public sealed class AutomaticMediaRequest
 {
+    public bool SubscribeOnly { get; set; }
     [Required]
     [MaxLength(300)]
     public string Title { get; set; } = string.Empty;
