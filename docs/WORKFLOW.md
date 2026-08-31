@@ -211,3 +211,9 @@ Die Anzahl umfasst ausstehende Freigaben, keine Downloads oder Autosync-Abos.
 Vollständig geteilte Beteiligungen an derselben offenen Anfrage werden einmal gezählt.
 Der Web-Menüzähler verwirft verspätete Antworten nach Benutzer-/Serverwechsel,
 pausiert bei verborgenem Fenster und verschwindet bei Fehlern oder fehlenden Rechten.
+
+Seit 0.5.5 zeigt auch der Seitenmenüeintrag „Anfragen“ denselben Zähler aus derselben
+Abfrage. Eigene Anfragen, die ältere Listen-API und die paginierte Adminübersicht
+sortieren nach `CreatedUtc` absteigend, bei gleichen Zeitpunkten nach ID absteigend.
+Der Status beeinflusst die Reihenfolge nicht. Die Oberfläche übernimmt diese
+Reihenfolge auch bei Aktualisierungen, ohne unveränderte Karten neu aufzubauen.

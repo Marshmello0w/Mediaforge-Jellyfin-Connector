@@ -24,6 +24,7 @@ internal static class WorkflowTests
         await PendingBadgeCount(root);
         await MigrationAndNotifications(root);
         await BackgroundAndPagination(root);
+        await NewestRequestsFirst(root);
         await BatchingAndDigests(root);
         Authorization();
         var contract = JsonSerializer.Serialize(new MediaRequest { AutosyncRequested = true, History = [new("approved", DateTime.UtcNow, "Admin")] });
@@ -236,6 +237,32 @@ internal static class WorkflowTests
         var page = await env.Store.AdminPageAsync("Submitted", "a", "completed", "source-a", null, 1, 1, Token);
         Check(page.Total == 1 && page.Items.Count == 1 && page.Downloading == 0, "Filtered admin page/counters incorrect.");
         Check((await env.Store.AdminPageAsync(null, null, null, null, null, 2, 1, Token)).Items.Count == 0, "Pagination repeated first page.");
+    }
+
+    private static async Task NewestRequestsFirst(string root)
+    {
+        var env = Create(root, "workflow-newest-first");
+        var ids = new List<long>();
+        var epoch = new DateTime(2026, 8, 31, 10, 0, 0, DateTimeKind.Utc);
+        var statuses = new[] { RequestStatuses.Completed, RequestStatuses.Failed, RequestStatuses.Pending, RequestStatuses.Queued };
+        var minutes = new[] { 3, 0, 1, 3 };
+        for (var index = 0; index < statuses.Length; index++)
+        {
+            var added = await env.Store.TryAddAsync("one", "One", new CreateMediaRequest
+            {
+                Title = "Ordered " + index, SeriesUrl = "https://example.invalid/order/" + index, Source = "source-a",
+                Language = "German Dub", Provider = "VOE", Episodes = ["https://example.invalid/order/episode/" + index],
+            }, RequestStatuses.Pending, 10, Token);
+            var id = added.Request!.Id; ids.Add(id);
+            await env.Store.UpdateWorkflowAsync(id, row => { row.CreatedUtc = epoch.AddMinutes(minutes[index]); row.Status = statuses[index]; }, Token);
+        }
+        var expected = new[] { ids[3], ids[0], ids[2], ids[1] };
+        Check((await env.Store.ListForUserAsync("one", 10, Token)).Select(r => r.Id).SequenceEqual(expected), "Personal requests are not newest first with stable ties.");
+        Check((await env.Store.ListAllAsync(2, Token)).Select(r => r.Id).SequenceEqual(expected.Take(2)), "Legacy request limit was applied before date sorting.");
+        var first = await env.Store.AdminPageAsync(null, null, null, null, null, 1, 2, Token);
+        var second = await env.Store.AdminPageAsync(null, null, null, null, null, 2, 2, Token);
+        Check(first.Items.Concat(second.Items).Select(r => r.Id).SequenceEqual(expected), "Admin pagination prioritizes status or IDs over request date.");
+        Check((await env.Store.ListForUserAsync("other", 10, Token)).Count == 0, "Date sorting bypassed user isolation.");
     }
 
     private static void Authorization()

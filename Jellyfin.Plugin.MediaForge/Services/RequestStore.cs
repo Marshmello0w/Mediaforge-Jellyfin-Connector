@@ -119,7 +119,8 @@ public sealed partial class RequestStore
         {
             return _document.Requests
                 .Where(item => item.UserId == userId && !item.WithdrawnByOwner)
-                .OrderByDescending(item => item.Id)
+                .OrderByDescending(item => item.CreatedUtc)
+                .ThenByDescending(item => item.Id)
                 .Take(Math.Clamp(limit, 1, 500))
                 .Select(item => Clone(item)!)
                 .ToList();
@@ -136,7 +137,8 @@ public sealed partial class RequestStore
         try
         {
             return _document.Requests
-                .OrderByDescending(item => item.Id)
+                .OrderByDescending(item => item.CreatedUtc)
+                .ThenByDescending(item => item.Id)
                 .Take(Math.Clamp(limit, 1, 500))
                 .Select(item => Clone(item)!)
                 .ToList();

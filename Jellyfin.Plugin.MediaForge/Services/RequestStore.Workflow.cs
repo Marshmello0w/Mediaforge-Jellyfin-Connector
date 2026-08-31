@@ -218,7 +218,7 @@ public sealed partial class RequestStore
                     ? primary : r;
             })
             .DistinctBy(r => r.Id)
-            .OrderBy(r => r.Status is RequestStatuses.Failed or RequestStatuses.Uncertain ? 0 : r.Status == RequestStatuses.Pending ? 1 : 2)
+            .OrderByDescending(r => r.CreatedUtc)
             .ThenByDescending(r => r.Id).ToArray();
         return new(items.Skip((page - 1) * pageSize).Take(pageSize).ToArray(), items.Length, page, pageSize,
             all.Count(r => r.Status == RequestStatuses.Pending), all.Count(r => r.Status == RequestStatuses.Queued),

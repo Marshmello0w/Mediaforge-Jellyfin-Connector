@@ -330,12 +330,15 @@ export default function (view, params) {
     const wanted = new Set((items || []).map(item => String(item.id)));
     Array.from(host.children).forEach(node => { if (!wanted.has(node.dataset.id)) node.remove(); });
     if (!items || !items.length) { host.textContent = 'Keine Anfragen vorhanden.'; return; }
-    items.forEach(item => {
+    items.forEach((item, index) => {
       const progress = progressByQueue && progressByQueue.get(item.mediaForgeQueueId);
       const people = participants && participants[item.id] || [];
       const signature = JSON.stringify([item, progress, people]);
       const existing = Array.from(host.children).find(node => node.dataset.id === String(item.id));
-      if (existing && existing.dataset.signature === signature) return;
+      if (existing && existing.dataset.signature === signature) {
+        if (host.children[index] !== existing) host.insertBefore(existing, host.children[index] || null);
+        return;
+      }
       const checked = existing && existing.querySelector('input[data-select]')?.checked;
       const expanded = existing && existing.querySelector('details')?.open;
       const card = document.createElement('article'); card.className = 'mf-request'; card.dataset.id = item.id; card.dataset.signature = signature;
@@ -360,6 +363,7 @@ export default function (view, params) {
       if (!admin && item.status === 'pending') actions.appendChild(button('Beteiligung zurückziehen', () => withdrawRequest(item.id), true));
       if (!admin && item.status === 'available') actions.appendChild(button('In Jellyfin öffnen', async () => { const data = await call('Requests/' + item.id + '/Library'); if (!data.itemId) throw new Error('Kein für dich zugänglicher Bibliothekseintrag gefunden.'); window.location.hash = '#/details?id=' + encodeURIComponent(data.itemId) + (typeof api.serverId === 'function' ? '&serverId=' + encodeURIComponent(api.serverId()) : ''); }));
       card.appendChild(actions); if (existing) existing.replaceWith(card); else host.appendChild(card);
+      if (host.children[index] !== card) host.insertBefore(card, host.children[index] || null);
     });
   }
   async function decide(id, action) {

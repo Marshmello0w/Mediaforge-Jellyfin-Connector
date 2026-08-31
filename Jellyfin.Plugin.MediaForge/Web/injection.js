@@ -20,7 +20,7 @@
   }
   function renderBadge() {
     const active = !suspended && !document.hidden && sessionKey && sessionKey === currentSession();
-    document.querySelectorAll('.mainDrawerButton').forEach(button => {
+    document.querySelectorAll('.mainDrawerButton, #' + MENU_ID).forEach(button => {
       let badge = button.querySelector('.mf-pending-badge');
       if (!active || pendingCount < 1) {
         if (badge) badge.remove();
@@ -97,6 +97,7 @@
     const style = document.createElement('style');
     style.textContent = '.mainDrawerButton.mf-pending-anchor{position:relative;overflow:visible}.mf-pending-badge{position:absolute;top:1px;right:0;display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 3px;box-sizing:border-box;border-radius:999px;background:#c62828;color:#fff;font:700 11px/18px system-ui,sans-serif;pointer-events:none;z-index:1}';
     document.head.appendChild(style);
+    style.textContent += '#' + MENU_ID + ' .mf-pending-badge{position:static;flex-shrink:0;margin-inline-start:.5em;vertical-align:middle}';
     const observer = new MutationObserver(() => { inject(); if (checkSession()) refreshCount(); renderBadge(); });
     observer.observe(document.body, { childList: true, subtree: true });
     const refresh = () => { checkSession(); renderBadge(); refreshCount(); };
