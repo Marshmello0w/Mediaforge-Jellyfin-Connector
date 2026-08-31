@@ -4,7 +4,26 @@ Filme und Serien direkt in Jellyfin suchen und anfragen. Administratoren können
 Anfragen freigeben oder automatisch freigeben lassen. MediaForge übernimmt die
 Downloads; neu freigegebene Serien werden zusätzlich dauerhaft in Autosync aufgenommen.
 
-**Version: 0.5.3 · Jellyfin ab 10.11 · MediaForge 1.5.x / 1.6.x**
+**Version: 0.5.4 · Jellyfin ab 10.11 · MediaForge 1.5.x / 1.6.x**
+
+## Neu in 0.5.4: Freigabezähler für Admins
+
+Am Drei-Striche-Menü von Jellyfin-Web erscheint ein kleiner roter Kreis mit
+weißer Zahl, sobald Anfragen auf Freigabe warten. Kein Popup und kein zusätzlicher
+Textkasten. Bei null offenen Freigaben verschwindet der Kreis; normale Benutzer
+sehen ihn nicht. Das Menü bleibt normal bedienbar.
+
+Die Anzahl wird bei sichtbarem Browserfenster alle 30 Sekunden aktualisiert,
+zusätzlich nach Freigabe/Ablehnung im Plugin und beim Zurückkehren zur Seite.
+Vollständig geteilte Anfragen werden in der Freigabeliste und im Zähler einmal
+gezählt. Ab 100 zeigt der Kreis `99+`; die genaue Zahl bleibt für Screenreader verfügbar.
+Beim Abmelden, Benutzerwechsel oder fehlender Berechtigung wird der Zähler entfernt.
+
+Für diese Funktion genügt das Jellyfin-Plugin **0.5.4.0**: Jellyfin nach dem Update
+neu starten und Jellyfin-Web neu laden (gegebenenfalls den Browser-Cache leeren).
+Die bestehende Web-Einbindung des Plugins muss aktiviert sein (`EnableAllUsers`,
+standardmäßig aktiv). Native Clients ohne Jellyfin-Web erhalten diesen Menüpunkt
+nicht automatisch. Die MediaForge-Modulfunktionen sind gegenüber 0.5.3 unverändert.
 
 ## Autosync-Korrektur und Diagnose in 0.5.3
 

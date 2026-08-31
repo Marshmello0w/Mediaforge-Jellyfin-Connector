@@ -187,6 +187,21 @@ public sealed partial class RequestStore
         finally { _lock.Release(); }
     }
 
+    public async Task<int> PendingApprovalCountAsync(CancellationToken token)
+    {
+        await _lock.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            var pending = _document.Requests.Where(r => r.Status == RequestStatuses.Pending).ToArray();
+            var pendingIds = pending.Select(r => r.Id).ToHashSet();
+            // A participation sharing its entire selection with one pending
+            // request appears once, just like in the admin overview.
+            return pending.Count(r => !(r.Episodes.Count == 0 && r.SharedRequestIds.Count == 1
+                && pendingIds.Contains(r.SharedRequestIds[0])));
+        }
+        finally { _lock.Release(); }
+    }
+
     public async Task<AdminRequestPage> AdminPageAsync(string? query, string? userId, string? status, string? source, DateTime? since, int page, int pageSize, CancellationToken token)
     {
         var all = await SnapshotAsync(token).ConfigureAwait(false);

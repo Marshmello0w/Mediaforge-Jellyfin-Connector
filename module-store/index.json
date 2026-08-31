@@ -7,7 +7,7 @@
       "folder": "marshmello_jellyfin_connector",
       "type": "module",
       "name": "Jellyfin Connector - Marshmello",
-      "version": "0.5.3",
+      "version": "0.5.4",
       "author": "MediaForge Jellyfin Connector contributors",
       "trust": "unverified",
       "description": {
@@ -22,8 +22,8 @@
       "repo_url": "https://github.com/Marshmello0w/Mediaforge-Jellyfin-Connector",
       "source_url": "https://github.com/Marshmello0w/Mediaforge-Jellyfin-Connector/tree/main/MediaForge.Module/marshmello_jellyfin_connector",
       "license": "GPL-3.0-or-later",
-      "download_url": "packages/marshmello_jellyfin_connector-0.5.3.mfmod",
-      "sha256": "7d5b747674ace35f0fa0f1c83af1721d3669e93f3eed936ca926a27f28bc95a3",
+      "download_url": "packages/marshmello_jellyfin_connector-0.5.4.mfmod",
+      "sha256": "b6d04a07f15a0216c70719dbf428f5208a79bd3c99111f65c5cad037fab539d3",
       "size": 10879
     }
   ]

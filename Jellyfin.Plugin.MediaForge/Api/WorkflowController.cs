@@ -103,6 +103,12 @@ public sealed class WorkflowController(RequestStore store, MediaForgeRequestAppl
             pending = result.Pending, downloading = result.Downloading, errors = result.Errors, autosyncPending = result.AutosyncPending, participants });
     }
 
+    [HttpGet("Admin/PendingCount")]
+    [Authorize(Policy = Policies.RequiresElevation)]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+    public async Task<IActionResult> PendingCount(CancellationToken token)
+        => Ok(new { count = await store.PendingApprovalCountAsync(token).ConfigureAwait(false) });
+
     [HttpPost("Admin/Batch")]
     [Authorize(Policy = Policies.RequiresElevation)]
     public async Task<IActionResult> Batch([FromBody] BatchDecision body, CancellationToken token)

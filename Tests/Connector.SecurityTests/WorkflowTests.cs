@@ -21,6 +21,7 @@ internal static class WorkflowTests
         await CompleteSubscription(root);
         await LanguageAvailability(root);
         await AutosyncDiagnostics(root);
+        await PendingBadgeCount(root);
         await MigrationAndNotifications(root);
         await BackgroundAndPagination(root);
         await BatchingAndDigests(root);
@@ -241,8 +242,28 @@ internal static class WorkflowTests
     {
         var type = typeof(WorkflowController);
         Check(type.IsDefined(typeof(AuthorizeAttribute), true), "Workflow controller is not authenticated.");
-        foreach (var name in new[] { "Overview", "Batch", "Recovery", "Users", "Rule", "Diagnostics" })
+        foreach (var name in new[] { "Overview", "PendingCount", "Batch", "Recovery", "Users", "Rule", "Diagnostics" })
             Check(type.GetMethod(name)!.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>().Any(a => a.Policy == Policies.RequiresElevation), "Missing admin authorization on " + name);
+    }
+
+    private static async Task PendingBadgeCount(string root)
+    {
+        var env = Create(root, "workflow-pending-badge");
+        Check(await env.Store.PendingApprovalCountAsync(Token) == 0, "Empty store shows an admin badge.");
+        var first = await env.App.SubmitAutomaticAsync("one", "One", Selection(), false, Token);
+        await env.App.SubmitAutomaticAsync("two", "Two", Selection(), false, Token);
+        Check(await env.Store.PendingApprovalCountAsync(Token) == 1, "Shared pending request was counted twice.");
+        var additional = await env.Store.TryAddAsync("three", "Three", new CreateMediaRequest
+        {
+            Title = "Additional", SeriesUrl = "https://example.invalid/other", Source = "source-a",
+            Language = "German Dub", Provider = "VOE", Episodes = ["https://example.invalid/other/episode/1"],
+        }, RequestStatuses.Pending, 10, Token);
+        Check(await env.Store.PendingApprovalCountAsync(Token) == 2, "Additional approval missing from badge.");
+        await env.Store.MarkQueuedAsync(additional.Request!.Id, 43, "Admin", Token);
+        Check(await env.Store.PendingApprovalCountAsync(Token) == 1, "Queued download occupies pending badge.");
+        await env.App.ApproveAsync(first.Request!.Id, "Admin", Token);
+        await env.App.SynchronizeAsync(false, Token);
+        Check(await env.Store.PendingApprovalCountAsync(Token) == 0, "Approved requests left a stale badge.");
     }
 
     private static async Task BatchingAndDigests(string root)

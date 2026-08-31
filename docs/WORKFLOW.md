@@ -202,3 +202,12 @@ Upstream-Fehlertexte werden nie weitergereicht.
 prüft mit einem lokalen Checkout von Tag `v1.6.0` die tatsächlichen Core-Funktionen
 gegen eine temporäre SQLite-Datenbank. Providerzugriffe und Downloadworker werden
 nicht gestartet. Flask aus den Test-Abhängigkeiten muss installiert sein.
+
+## Admin-Menüzähler (0.5.4)
+
+`GET /MediaForgeRequests/Admin/PendingCount` erfordert Jellyfins Adminrichtlinie,
+sendet `Cache-Control: no-store` und liefert ausschließlich `{ "count": n }`.
+Die Anzahl umfasst ausstehende Freigaben, keine Downloads oder Autosync-Abos.
+Vollständig geteilte Beteiligungen an derselben offenen Anfrage werden einmal gezählt.
+Der Web-Menüzähler verwirft verspätete Antworten nach Benutzer-/Serverwechsel,
+pausiert bei verborgenem Fenster und verschwindet bei Fehlern oder fehlenden Rechten.

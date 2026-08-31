@@ -29,7 +29,12 @@ export default function (view, params) {
       request.headers = { 'Content-Type': 'application/json' };
       request.data = JSON.stringify(opts.body);
     }
-    try { return await api.fetch(request); }
+    try {
+      const result = await api.fetch(request);
+      if (request.type !== 'GET' && (path === 'Admin/Batch' || path === 'Requests/Participation' || path.startsWith('Admin/Requests/') || /^Requests\/\d+$/.test(path)))
+        document.dispatchEvent(new Event('mediaforge:requests-changed'));
+      return result;
+    }
     catch (error) { throw new Error(await readErrorMessage(error)); }
   }
   async function readErrorMessage(error) {

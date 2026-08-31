@@ -1,6 +1,6 @@
 {
   "category": "General",
-  "changelog": "v0.5.3\n- Use the documented MediaForge raw-view API for internal calls and late AutoSync registration\n- Preserve API-key, scope and source checks with a legacy fallback\n- Report safe AutoSync failure reasons and HTTP status without exposing upstream errors\n- Add runtime diagnostics and regressions for wrapped handlers, auth failures and retries",
+  "changelog": "v0.5.4\n- Add a small red pending-approval count on the Jellyfin Web menu button for admins\n- Hide the badge for zero pending requests, non-admin users, logout and errors\n- Refresh every 30 seconds while visible and after approval actions\n- Use an admin-only count endpoint without request details; deduplicate shared approvals",
   "description": "Searches the movie and TV sources enabled in MediaForge directly from Jellyfin. Users can request downloads; administrators can approve them or enable automatic mode.",
   "guid": "2ea7f67d-8e4d-4c84-bd5a-a5bcd713bb23",
   "name": "MediaForge Requests",
@@ -8,7 +8,7 @@
   "owner": "MediaForge Jellyfin Connector contributors",
   "targetAbi": "10.11.0.0",
   "timestamp": "2026-08-31T00:00:00Z",
-  "version": "0.5.3.0",
+  "version": "0.5.4.0",
   "status": "Active",
   "autoUpdate": true
 }
