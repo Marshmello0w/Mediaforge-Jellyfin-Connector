@@ -18,6 +18,48 @@ export default function (view, params) {
   let viewActive = true;
   let notificationTimer = null;
   let preferencesDirty = false;
+  const adminFilterFields = [['query', 'admin-query'], ['userId', 'admin-user'], ['status', 'admin-status'], ['source', 'admin-source'], ['since', 'admin-since']];
+  let adminFiltersReady = false;
+  let adminFilterRevision = 0;
+  let adminReloadRequested = false;
+  function filterStorageKey() {
+    try {
+      const user = api.getCurrentUserId && api.getCurrentUserId();
+      const server = api.serverId ? api.serverId() : api.getUrl('');
+      return user && server ? 'mediaforge:admin-filters:v1:' + JSON.stringify([String(server), String(user)]) : null;
+    } catch (_) { return null; }
+  }
+  const adminFilterStorageKey = filterStorageKey();
+  function updateOpenFilter() {
+    const active = q('admin-status').value === 'pending';
+    q('admin-open-only').classList.toggle('active', active);
+    q('admin-open-only').setAttribute('aria-pressed', String(active));
+  }
+  function saveAdminFilters() {
+    if (!adminFiltersReady || !adminFilterStorageKey || filterStorageKey() !== adminFilterStorageKey) return;
+    const filters = Object.fromEntries(adminFilterFields.map(([field, name]) => [field, q(name).value]));
+    try { window.localStorage.setItem(adminFilterStorageKey, JSON.stringify(filters)); }
+    catch (_) { /* Filters still work when browser storage is unavailable. */ }
+  }
+  function restoreAdminFilters() {
+    try {
+      const saved = adminFilterStorageKey && filterStorageKey() === adminFilterStorageKey
+        ? JSON.parse(window.localStorage.getItem(adminFilterStorageKey) || '{}') : {};
+      if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+        adminFilterFields.forEach(([field, name]) => {
+          const value = saved[field]; const input = q(name);
+          if (typeof value !== 'string' || value.length > (field === 'query' ? 300 : 200)) return;
+          if (input.tagName === 'SELECT' && !Array.from(input.options).some(option => option.value === value)) return;
+          if (field === 'since' && value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+          input.value = value;
+        });
+      }
+    } catch (_) { /* Ignore malformed or blocked browser storage. */ }
+    adminFiltersReady = true; updateOpenFilter(); saveAdminFilters();
+  }
+  function adminFiltersChanged() {
+    adminPage = 1; adminFilterRevision++; updateOpenFilter(); saveAdminFilters();
+  }
 
   function url(path, query) {
     let value = api.getUrl('MediaForgeRequests/' + path);
@@ -120,10 +162,11 @@ export default function (view, params) {
   async function detectAdmin() {
     try {
       const data = await call('Admin/Overview');
-      const tab = view.querySelector('[data-tab="admin"]'); tab.style.display = '';
       renderRequests(q('admin'), data.items, true);
       await loadRules();
       state.sources.forEach(source => { const option = document.createElement('option'); option.value = source.id; option.textContent = source.label; q('admin-source').appendChild(option); });
+      restoreAdminFilters();
+      const tab = view.querySelector('[data-tab="admin"]'); tab.style.display = '';
     } catch (_) { /* normal users receive 403 */ }
   }
 
@@ -314,19 +357,22 @@ export default function (view, params) {
     finally { mineLoading = false; }
   }
   async function loadAdmin() {
-    if (adminBusy) return;
+    if (adminBusy) { adminReloadRequested = true; return; }
     if (adminTimer) { clearTimeout(adminTimer); adminTimer = null; }
     adminBusy = true;
+    adminReloadRequested = false;
+    const revision = adminFilterRevision;
     try {
       const query = { page: adminPage, pageSize: 30 };
-      for (const [field, name] of [['query', 'admin-query'], ['userId', 'admin-user'], ['status', 'admin-status'], ['source', 'admin-source'], ['since', 'admin-since']]) if (q(name).value) query[field] = q(name).value;
+      for (const [field, name] of adminFilterFields) if (q(name).value) query[field] = q(name).value;
       const data = await call('Admin/Overview', { query });
+      if (revision !== adminFilterRevision) { adminReloadRequested = true; return; }
       renderRequests(q('admin'), data.items, true, null, data.participants);
       q('admin-counts').textContent = data.pending + ' offen · ' + data.downloading + ' Downloads · ' + data.errors + ' Fehler · ' + data.autosyncPending + ' Autosync-Übernahmen';
       q('page-label').textContent = 'Seite ' + data.page + ' · ' + data.total + ' Anfragen';
       q('page-prev').disabled = adminPage <= 1; q('page-next').disabled = adminPage * data.pageSize >= data.total;
-    } catch (error) { notice(error.message, true); }
-    finally { adminBusy = false; if (viewActive && view.isConnected && state.tab === 'admin' && adminSection === 'requests') adminTimer = setTimeout(loadAdmin, 5000); }
+    } catch (error) { if (revision === adminFilterRevision) notice(error.message, true); }
+    finally { adminBusy = false; if (viewActive && view.isConnected && state.tab === 'admin' && adminSection === 'requests') adminTimer = setTimeout(loadAdmin, adminReloadRequested ? 0 : 5000); }
   }
   function button(label, action, danger) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'mf-btn ' + (danger ? 'danger' : 'secondary'); b.textContent = label;
@@ -450,7 +496,13 @@ export default function (view, params) {
   });
   q('notification-form').addEventListener('submit', async event => { event.preventDefault(); try { await call('Notifications/Preferences', { method: 'PUT', body: { decisions: q('notify-decisions').checked, availability: q('notify-availability').checked, newEpisodes: q('notify-episodes').value } }); notice('Benachrichtigungen gespeichert.'); } catch (error) { notice(error.message, true); } });
   q('read-all').addEventListener('click', async () => { try { await call('Notifications/Read', { method: 'POST', body: { id: 'all' } }); await loadNotifications(); } catch (error) { notice(error.message, true); } });
-  q('admin-filter').addEventListener('submit', event => { event.preventDefault(); adminPage = 1; loadAdmin(); });
+  q('admin-filter').addEventListener('input', adminFiltersChanged);
+  q('admin-filter').addEventListener('change', adminFiltersChanged);
+  q('admin-filter').addEventListener('submit', event => { event.preventDefault(); adminFiltersChanged(); loadAdmin(); });
+  q('admin-open-only').addEventListener('click', () => {
+    q('admin-status').value = q('admin-status').value === 'pending' ? '' : 'pending';
+    adminFiltersChanged(); loadAdmin();
+  });
   q('page-prev').onclick = () => { adminPage = Math.max(1, adminPage - 1); loadAdmin(); }; q('page-next').onclick = () => { adminPage++; loadAdmin(); };
   async function batch(action) { const ids = Array.from(q('admin').querySelectorAll('input[data-select]:checked')).map(n => Number(n.dataset.select)); if (!ids.length) return notice('Bitte Anfragen auswählen.', true); const reason = action === 'reject' ? window.prompt('Ablehnungsgrund:', '') : ''; if (reason === null) return; q('batch-approve').disabled = true; q('batch-reject').disabled = true; try { const result = await call('Admin/Batch', { method: 'POST', body: { ids, action, reason } }); const failures = result.results.filter(r => !r.ok); notice(failures.length ? failures.map(r => '#' + r.id + ': ' + (r.error || r.status)).join(' · ') : 'Auswahl verarbeitet.', !!failures.length); await loadAdmin(); } catch (error) { notice(error.message, true); } finally { q('batch-approve').disabled = false; q('batch-reject').disabled = false; } }
   q('batch-approve').onclick = () => batch('approve'); q('batch-reject').onclick = () => batch('reject');

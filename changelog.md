@@ -6,6 +6,21 @@
 für das Projekt; das Jellyfin-Plugin verwendet zusätzlich eine vierte Stelle,
 zum Beispiel `0.5.6.0`. Die Historie dieser Variante beginnt mit 0.5.0.
 
+## 0.5.7 – Gespeicherte Adminfilter und „Nur offene“
+
+- Benutzer-, Status- und Quellenfilter sowie Titel und Zeitraum werden lokal im
+  Browser gespeichert und nach dem Neuladen wiederhergestellt. Die Speicherung
+  ist nach Jellyfin-Server und angemeldetem Benutzer getrennt.
+- Der Schnellfilter **Nur offene** zeigt mit einem Klick Anfragen, die auf Freigabe
+  warten. Ein weiterer Klick zeigt wieder alle Status. Andere Filter bleiben erhalten.
+- Filteränderungen beginnen auf Seite 1. Verspätete Antworten einer vorherigen
+  Filterabfrage überschreiben die aktuelle Auswahl nicht.
+- Ungültige gespeicherte Werte werden ignoriert; gelöschte Benutzer oder Quellen
+  fallen auf „Alle“ zurück. Ohne Browserspeicher bleibt die Filterung nutzbar.
+
+**Update:** Jellyfin-Plugin `0.5.7.0`, anschließend Jellyfin neu starten und
+Jellyfin-Web neu laden. Für diese Änderungen ist kein MediaForge-Modulupdate nötig.
+
 ## 0.5.6 – Eigener Admin-Tab für Benutzerregeln
 
 - Adminbereich in die Untertabs **Anfragen** und **Benutzerregeln** aufgeteilt.

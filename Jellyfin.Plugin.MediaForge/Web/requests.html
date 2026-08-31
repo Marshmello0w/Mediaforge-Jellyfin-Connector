@@ -48,8 +48,9 @@
       </nav>
       <div data-admin-panel="requests">
       <div data-mf="admin-counts" class="mf-notice" aria-live="polite"></div>
+      <div class="mf-actions"><button class="mf-tab" data-mf="admin-open-only" type="button" aria-pressed="false" title="Nur Anfragen anzeigen, die auf Freigabe warten">Nur offene</button></div>
       <form data-mf="admin-filter" class="mf-actions">
-        <input class="mf-input" data-mf="admin-query" placeholder="Titel suchen" aria-label="Titel suchen" style="width:15rem">
+        <input class="mf-input" data-mf="admin-query" maxlength="300" placeholder="Titel suchen" aria-label="Titel suchen" style="width:15rem">
         <select class="mf-select" data-mf="admin-user" aria-label="Benutzer" style="width:12rem"><option value="">Alle Benutzer</option></select>
         <select class="mf-select" data-mf="admin-status" aria-label="Status" style="width:12rem"><option value="">Alle Status</option><option value="pending">Ausstehend</option><option value="queued">Download</option><option value="failed">Fehlgeschlagen</option><option value="uncertain">Übergabe unklar</option><option value="available">Verfügbar</option></select>
         <select class="mf-select" data-mf="admin-source" aria-label="Quelle" style="width:12rem"><option value="">Alle Quellen</option></select>
