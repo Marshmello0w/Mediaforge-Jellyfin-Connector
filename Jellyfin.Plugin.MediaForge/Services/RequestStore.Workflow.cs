@@ -97,6 +97,27 @@ public sealed partial class RequestStore
         finally { _lock.Release(); }
     }
 
+    public async Task<UserRequestRule> ResetAutomaticApprovalAsync(string userId, string actor, CancellationToken token)
+    {
+        await _lock.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            var document = CloneDocument();
+            var rule = document.UserRules.GetValueOrDefault(userId) ?? new();
+            // A stale browser must not undo a newer manual rule or overwrite limits.
+            if (rule.ApprovalMode == "automatic")
+            {
+                rule.ApprovalMode = "inherit";
+                document.Audit.Add(new RequestEvent("user-rule-reset-automatic", DateTime.UtcNow, actor, userId));
+                if (document.Audit.Count > 2000) document.Audit.RemoveAt(0);
+                await SaveLockedAsync(document, token).ConfigureAwait(false);
+                _document = document;
+            }
+            return new UserRequestRule { ApprovalMode = rule.ApprovalMode, MaxOpenRequests = rule.MaxOpenRequests, AllowSubscriptions = rule.AllowSubscriptions };
+        }
+        finally { _lock.Release(); }
+    }
+
     public async Task<(IReadOnlyList<UserNotification> Items, NotificationPreferences Preferences, int Unread)> NotificationsAsync(string userId, CancellationToken token)
     {
         await _lock.WaitAsync(token).ConfigureAwait(false);

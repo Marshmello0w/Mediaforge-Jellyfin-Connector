@@ -12,6 +12,8 @@ export default function (view, params) {
   let adminPage = 1;
   let adminBusy = false;
   let adminUsers = [];
+  let adminSection = 'requests';
+  let rulesBusy = false;
   let previousFocus = null;
   let viewActive = true;
   let notificationTimer = null;
@@ -57,14 +59,21 @@ export default function (view, params) {
   function switchTab(name) {
     state.tab = name;
     if (name !== 'mine' && mineTimer) { clearTimeout(mineTimer); mineTimer = null; }
-    view.querySelectorAll('.mf-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
+    view.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
     view.querySelectorAll('.mf-panel').forEach((p) => p.classList.toggle('active', p.dataset.panel === name));
     if (name === 'mine') loadMine();
     if (adminTimer) { clearTimeout(adminTimer); adminTimer = null; }
-    if (name === 'admin') loadAdmin();
+    if (name === 'admin') adminSection === 'rules' ? loadRules() : loadAdmin();
     if (name === 'notifications') loadNotifications();
   }
-  view.querySelectorAll('.mf-tab').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  view.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+  view.querySelectorAll('[data-admin-tab]').forEach(b => b.addEventListener('click', () => {
+    adminSection = b.dataset.adminTab;
+    view.querySelectorAll('[data-admin-tab]').forEach(tab => { const active = tab.dataset.adminTab === adminSection; tab.classList.toggle('active', active); tab.setAttribute('aria-pressed', String(active)); });
+    view.querySelectorAll('[data-admin-panel]').forEach(panel => { panel.hidden = panel.dataset.adminPanel !== adminSection; });
+    clearTimeout(adminTimer); adminTimer = null;
+    if (adminSection === 'rules') loadRules(); else loadAdmin();
+  }));
 
   async function boot() {
     try {
@@ -113,10 +122,8 @@ export default function (view, params) {
       const data = await call('Admin/Overview');
       const tab = view.querySelector('[data-tab="admin"]'); tab.style.display = '';
       renderRequests(q('admin'), data.items, true);
-      adminUsers = await call('Admin/Users');
-      adminUsers.forEach(user => { for (const name of ['admin-user', 'rule-user']) { const option = document.createElement('option'); option.value = user.id; option.textContent = user.username; q(name).appendChild(option); } });
+      await loadRules();
       state.sources.forEach(source => { const option = document.createElement('option'); option.value = source.id; option.textContent = source.label; q('admin-source').appendChild(option); });
-      syncRule();
     } catch (_) { /* normal users receive 403 */ }
   }
 
@@ -319,7 +326,7 @@ export default function (view, params) {
       q('page-label').textContent = 'Seite ' + data.page + ' · ' + data.total + ' Anfragen';
       q('page-prev').disabled = adminPage <= 1; q('page-next').disabled = adminPage * data.pageSize >= data.total;
     } catch (error) { notice(error.message, true); }
-    finally { adminBusy = false; if (viewActive && view.isConnected && state.tab === 'admin') adminTimer = setTimeout(loadAdmin, 5000); }
+    finally { adminBusy = false; if (viewActive && view.isConnected && state.tab === 'admin' && adminSection === 'requests') adminTimer = setTimeout(loadAdmin, 5000); }
   }
   function button(label, action, danger) {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'mf-btn ' + (danger ? 'danger' : 'secondary'); b.textContent = label;
@@ -385,9 +392,62 @@ export default function (view, params) {
     finally { if (viewActive && view.isConnected) notificationTimer = setTimeout(loadNotifications, 30000); }
   }
   function syncRule() { const user = adminUsers.find(u => u.id === q('rule-user').value); if (!user) return; q('rule-mode').value = user.rule.approvalMode; q('rule-limit').value = user.rule.maxOpenRequests || ''; q('rule-subscribe').checked = user.rule.allowSubscriptions; }
+  function setRulesBusy(value) {
+    rulesBusy = value; q('rule-fields').disabled = value || !adminUsers.length; q('refresh-rules').disabled = value;
+    q('automatic-users').querySelectorAll('button').forEach(b => { b.disabled = value; });
+  }
+  function renderAutomaticUsers() {
+    const host = q('automatic-users'); host.replaceChildren();
+    const automatic = adminUsers.filter(user => user.rule.approvalMode === 'automatic');
+    if (!automatic.length) { host.textContent = 'Keine individuellen automatischen Freigaben aktiviert.'; return; }
+    automatic.forEach(user => {
+      const row = document.createElement('div'); row.className = 'mf-request mf-direct-row';
+      const name = document.createElement('span'); name.textContent = user.username;
+      const reset = button('×', () => resetAutomaticRule(user)); reset.classList.add('mf-reset-rule'); reset.disabled = rulesBusy;
+      reset.setAttribute('aria-label', user.username + ': globalen Freigabemodus übernehmen'); reset.title = 'Auf globale Einstellung zurücksetzen';
+      row.append(name, reset); host.appendChild(row);
+    });
+  }
+  async function loadRules() {
+    if (rulesBusy) return;
+    setRulesBusy(true);
+    try {
+      adminUsers = (await call('Admin/Users')).sort((a, b) => a.username.localeCompare(b.username));
+      for (const name of ['admin-user', 'rule-user']) {
+        const select = q(name); const selected = select.value; select.replaceChildren();
+        if (name === 'admin-user') { const all = document.createElement('option'); all.value = ''; all.textContent = 'Alle Benutzer'; select.appendChild(all); }
+        adminUsers.forEach(user => { const option = document.createElement('option'); option.value = user.id; option.textContent = user.username; select.appendChild(option); });
+        if (Array.from(select.options).some(option => option.value === selected)) select.value = selected;
+      }
+      syncRule(); renderAutomaticUsers();
+    } catch (error) { adminUsers = []; q('rule-user').replaceChildren(); q('automatic-users').textContent = 'Benutzerregeln konnten nicht geladen werden. Bitte erneut aktualisieren.'; notice(error.message, true); }
+    finally { setRulesBusy(false); }
+  }
+  async function resetAutomaticRule(user) {
+    if (rulesBusy) return;
+    setRulesBusy(true);
+    try {
+      user.rule = await call('Admin/Users/' + encodeURIComponent(user.id) + '/Rule/Automatic', { method: 'DELETE' });
+      if (q('rule-user').value === user.id) syncRule();
+      renderAutomaticUsers();
+      notice(user.rule.approvalMode === 'inherit' ? user.username + ': Der globale Freigabemodus gilt wieder.' : user.username + ': Der Freigabemodus wurde bereits geändert.');
+      setRulesBusy(false);
+      q('rule-user').focus();
+    } catch (error) { notice(error.message, true); }
+    finally { setRulesBusy(false); }
+  }
+  q('refresh-rules').addEventListener('click', loadRules);
   q('rule-user').addEventListener('change', syncRule);
   q('notification-form').addEventListener('change', () => { preferencesDirty = true; });
-  q('rule-form').addEventListener('submit', async event => { event.preventDefault(); try { const rule = { approvalMode: q('rule-mode').value, maxOpenRequests: q('rule-limit').value ? Number(q('rule-limit').value) : null, allowSubscriptions: q('rule-subscribe').checked }; await call('Admin/Users/' + q('rule-user').value + '/Rule', { method: 'PUT', body: rule }); adminUsers.find(u => u.id === q('rule-user').value).rule = rule; notice('Benutzerregel gespeichert.'); } catch (error) { notice(error.message, true); } });
+  q('rule-form').addEventListener('submit', async event => {
+    event.preventDefault(); if (rulesBusy) return;
+    const user = adminUsers.find(u => u.id === q('rule-user').value); if (!user) return;
+    const rule = { approvalMode: q('rule-mode').value, maxOpenRequests: q('rule-limit').value ? Number(q('rule-limit').value) : null, allowSubscriptions: q('rule-subscribe').checked };
+    setRulesBusy(true);
+    try { user.rule = await call('Admin/Users/' + encodeURIComponent(user.id) + '/Rule', { method: 'PUT', body: rule }); renderAutomaticUsers(); notice('Benutzerregel gespeichert.'); }
+    catch (error) { notice(error.message, true); }
+    finally { setRulesBusy(false); }
+  });
   q('notification-form').addEventListener('submit', async event => { event.preventDefault(); try { await call('Notifications/Preferences', { method: 'PUT', body: { decisions: q('notify-decisions').checked, availability: q('notify-availability').checked, newEpisodes: q('notify-episodes').value } }); notice('Benachrichtigungen gespeichert.'); } catch (error) { notice(error.message, true); } });
   q('read-all').addEventListener('click', async () => { try { await call('Notifications/Read', { method: 'POST', body: { id: 'all' } }); await loadNotifications(); } catch (error) { notice(error.message, true); } });
   q('admin-filter').addEventListener('submit', event => { event.preventDefault(); adminPage = 1; loadAdmin(); });
@@ -401,7 +461,7 @@ export default function (view, params) {
     if (event.key === 'Tab') { const nodes = Array.from(q('overlay').querySelectorAll('button:not(:disabled),select,input')).filter(n => !n.hidden); const first = nodes[0], last = nodes[nodes.length - 1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); } }
   });
   view.addEventListener('viewhide', () => { viewActive = false; clearTimeout(mineTimer); clearTimeout(adminTimer); clearTimeout(notificationTimer); });
-  view.addEventListener('viewshow', () => { viewActive = true; if (state.tab === 'mine') loadMine(); if (state.tab === 'admin') loadAdmin(); loadNotifications(); });
+  view.addEventListener('viewshow', () => { viewActive = true; if (state.tab === 'mine') loadMine(); if (state.tab === 'admin') adminSection === 'rules' ? loadRules() : loadAdmin(); loadNotifications(); });
   function progressLabel(progress) { if (!progress) return ''; return ({ queued: 'Wartet auf Download', running: 'Wird heruntergeladen', completed: 'Download fertig', partial: 'Teilweise fertig', failed: 'Download fehlgeschlagen', cancelled: 'In MediaForge abgebrochen' })[progress.status] || ''; }
   function progressDetail(progress) { const phase = ({ download: 'Download', ffmpeg: 'Verarbeitung' })[progress.phase] || 'Download'; const episodes = progress.total_episodes > 1 ? ' · ' + progress.current_episode + '/' + progress.total_episodes + ' Episoden' : ''; return phase + ': ' + Math.round(Number(progress.percent) || 0) + '%' + episodes; }
   function statusLabel(status) { return ({ approved: 'Freigegeben', running: 'Download läuft', requested: 'Angefragt', shared: 'Gemeinsame Anfrage', uncertain: 'Übergabe unklar', 'autosync-ready': 'Autosync eingerichtet', pending: 'Ausstehend', processing: 'Wird übergeben', queued: 'In MediaForge', completed: 'Download fertig', available: 'Bereits in Jellyfin vorhanden', partial: 'Teilweise fertig', cancelled: 'Außerhalb von Jellyfin abgebrochen', rejected: 'Abgelehnt', withdrawn: 'Zurückgezogen', failed: 'Fehlgeschlagen' })[status] || status; }

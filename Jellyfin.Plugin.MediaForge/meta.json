@@ -1,6 +1,6 @@
 {
   "category": "General",
-  "changelog": "v0.5.5\n- Show the same admin approval count beside Anfragen and on the menu button\n- Sort personal and admin requests newest first, with stable pagination\n- Insert new requests at the top during live refresh without rebuilding unchanged cards",
+  "changelog": "v0.5.6\n- Separate admin requests and user rules into two tabs\n- List users with explicit automatic approval and reset via the cross beside their name\n- Preserve request limits and subscription permissions when restoring global approval\n- Protect resets with admin authorization, atomic persistence and audit logging",
   "description": "Searches the movie and TV sources enabled in MediaForge directly from Jellyfin. Users can request downloads; administrators can approve them or enable automatic mode.",
   "guid": "2ea7f67d-8e4d-4c84-bd5a-a5bcd713bb23",
   "name": "MediaForge Requests",
@@ -8,7 +8,7 @@
   "owner": "MediaForge Jellyfin Connector contributors",
   "targetAbi": "10.11.0.0",
   "timestamp": "2026-08-31T00:00:00Z",
-  "version": "0.5.5.0",
+  "version": "0.5.6.0",
   "status": "Active",
   "autoUpdate": true
 }

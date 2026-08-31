@@ -25,6 +25,7 @@ internal static class WorkflowTests
         await MigrationAndNotifications(root);
         await BackgroundAndPagination(root);
         await NewestRequestsFirst(root);
+        await ResetAutomaticRules(root);
         await BatchingAndDigests(root);
         Authorization();
         var contract = JsonSerializer.Serialize(new MediaRequest { AutosyncRequested = true, History = [new("approved", DateTime.UtcNow, "Admin")] });
@@ -265,11 +266,31 @@ internal static class WorkflowTests
         Check((await env.Store.ListForUserAsync("other", 10, Token)).Count == 0, "Date sorting bypassed user isolation.");
     }
 
+    private static async Task ResetAutomaticRules(string root)
+    {
+        var env = Create(root, "workflow-reset-rules");
+        await env.Store.SetRuleAsync("one", new UserRequestRule { ApprovalMode = "automatic", MaxOpenRequests = 7, AllowSubscriptions = false }, "Admin", Token);
+        await env.Store.SetRuleAsync("other", new UserRequestRule { ApprovalMode = "automatic" }, "Admin", Token);
+        await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => env.Store.ResetAutomaticApprovalAsync("one", "Admin", Token)));
+        var restarted = new RequestStore(Path.Combine(root, "workflow-reset-rules"));
+        var rule = await restarted.GetRuleAsync("one", Token);
+        Check(rule.ApprovalMode == "inherit" && rule.MaxOpenRequests == 7 && !rule.AllowSubscriptions, "Reset lost unrelated rules or did not persist.");
+        Check((await restarted.GetRuleAsync("other", Token)).ApprovalMode == "automatic", "Reset changed another user.");
+        var pending = await env.App.SubmitAutomaticAsync("one", "One", Selection(), false, Token);
+        Check(pending.Request?.Status == "pending", "Reset did not restore global manual approval.");
+        await env.Store.SetRuleAsync("one", new UserRequestRule { ApprovalMode = "manual", MaxOpenRequests = 4 }, "Admin", Token);
+        Check((await env.Store.ResetAutomaticApprovalAsync("one", "Admin", Token)).ApprovalMode == "manual", "Stale reset overwrote newer manual approval.");
+        var automatic = Create(root, "workflow-reset-global-automatic", true);
+        await automatic.Store.SetRuleAsync("one", new UserRequestRule { ApprovalMode = "automatic" }, "Admin", Token);
+        await automatic.Store.ResetAutomaticApprovalAsync("one", "Admin", Token);
+        Check((await automatic.App.SubmitAutomaticAsync("one", "One", Selection(), false, Token)).Request?.Status == "queued", "Reset did not inherit global automatic approval.");
+    }
+
     private static void Authorization()
     {
         var type = typeof(WorkflowController);
         Check(type.IsDefined(typeof(AuthorizeAttribute), true), "Workflow controller is not authenticated.");
-        foreach (var name in new[] { "Overview", "PendingCount", "Batch", "Recovery", "Users", "Rule", "Diagnostics" })
+        foreach (var name in new[] { "Overview", "PendingCount", "Batch", "Recovery", "Users", "Rule", "ResetAutomaticRule", "Diagnostics" })
             Check(type.GetMethod(name)!.GetCustomAttributes(typeof(AuthorizeAttribute), true).Cast<AuthorizeAttribute>().Any(a => a.Policy == Policies.RequiresElevation), "Missing admin authorization on " + name);
     }
 

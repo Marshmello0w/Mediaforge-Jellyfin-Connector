@@ -183,6 +183,14 @@ public sealed class WorkflowController(RequestStore store, MediaForgeRequestAppl
         return Ok(body);
     }
 
+    [HttpDelete("Admin/Users/{userId}/Rule/Automatic")]
+    [Authorize(Policy = Policies.RequiresElevation)]
+    public async Task<IActionResult> ResetAutomaticRule(string userId, CancellationToken token)
+    {
+        if (!Guid.TryParse(userId, out var id) || users.GetUserById(id) is null) return NotFound();
+        return Ok(await store.ResetAutomaticApprovalAsync(id.ToString("N"), Actor, token).ConfigureAwait(false));
+    }
+
     [HttpGet("Admin/Diagnostics")]
     [Authorize(Policy = Policies.RequiresElevation)]
     public async Task<IActionResult> Diagnostics(CancellationToken token)

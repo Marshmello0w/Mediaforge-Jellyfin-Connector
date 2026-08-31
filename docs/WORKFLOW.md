@@ -217,3 +217,14 @@ Abfrage. Eigene Anfragen, die ältere Listen-API und die paginierte Adminübersi
 sortieren nach `CreatedUtc` absteigend, bei gleichen Zeitpunkten nach ID absteigend.
 Der Status beeinflusst die Reihenfolge nicht. Die Oberfläche übernimmt diese
 Reihenfolge auch bei Aktualisierungen, ohne unveränderte Karten neu aufzubauen.
+
+## Benutzerregeln im Adminbereich (0.5.6)
+
+Die Untertabs „Anfragen“ und „Benutzerregeln“ trennen Downloadverwaltung und Regeln.
+Die Liste „Direkte Freigabe aktiviert“ enthält nur Regeln mit `approvalMode=automatic`.
+`DELETE /MediaForgeRequests/Admin/Users/{userId}/Rule/Automatic` setzt diesen Modus
+atomar auf `inherit`, ohne Anfragelimit oder Abo-Berechtigung zu verändern. Der
+Endpunkt prüft Adminrechte und die Existenz des Jellyfin-Benutzers. Wiederholungen
+und bereits auf `manual` umgestellte Regeln bleiben unverändert. Änderungen werden
+dauerhaft gespeichert und mit Akteur/Zeitpunkt protokolliert. Die globale Einstellung
+bestimmt anschließend, ob Anfragen automatisch oder manuell freigegeben werden.

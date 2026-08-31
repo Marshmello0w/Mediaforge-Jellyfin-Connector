@@ -4,7 +4,20 @@ Filme und Serien direkt in Jellyfin suchen und anfragen. Administratoren können
 Anfragen freigeben oder automatisch freigeben lassen. MediaForge übernimmt die
 Downloads; neu freigegebene Serien werden zusätzlich dauerhaft in Autosync aufgenommen.
 
-**Version: 0.5.5 · Jellyfin ab 10.11 · MediaForge 1.5.x / 1.6.x**
+**Version: 0.5.6 · Jellyfin ab 10.11 · MediaForge 1.5.x / 1.6.x**
+
+## Neu in 0.5.6: Eigener Admin-Tab für Benutzerregeln
+
+Im Adminbereich gibt es jetzt die Untertabs **Anfragen** und **Benutzerregeln**.
+Unter Benutzerregeln lassen sich Freigabemodus, Anfragelimit und Serien-Abos wie
+bisher bearbeiten. Darunter stehen alle Benutzer mit individuell aktivierter
+automatischer Freigabe. Das **× rechts neben dem Namen** setzt ausschließlich
+diesen Freigabemodus auf **Globale Einstellung** zurück; Limit und Abo-Berechtigung
+bleiben erhalten. Ist die globale Freigabe automatisch, bleibt sie auch danach
+automatisch. Benutzer, die diese Einstellung nur global erben, stehen nicht in der Liste.
+
+Für die neue Oberfläche das Jellyfin-Plugin auf **0.5.6.0** aktualisieren, Jellyfin
+neu starten und Jellyfin-Web neu laden. Ein MediaForge-Modulupdate ist dafür nicht nötig.
 
 ## Neu in 0.5.5: Menüzähler und neueste Anfragen zuerst
 
