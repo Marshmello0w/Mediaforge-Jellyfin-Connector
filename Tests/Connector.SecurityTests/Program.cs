@@ -1222,6 +1222,7 @@ public sealed class FakeMediaForgeHandler : HttpMessageHandler
     public bool LoseDownloadResponse { get; set; }
     public bool ConfirmOperation { get; set; }
     public System.Net.HttpStatusCode AutosyncStatus { get; set; } = System.Net.HttpStatusCode.OK;
+    public string? AutosyncErrorBody { get; set; }
     public bool ReportCompleted { get; set; }
     public bool SupportsReceipts { get; set; }
     public bool IsMovie { get; set; }
@@ -1253,7 +1254,7 @@ public sealed class FakeMediaForgeHandler : HttpMessageHandler
         if (path == "/api/v1/marshmello-connector/autosync")
         {
             AutosyncCalls++;
-            return Json(AutosyncStatus, "{\"job_id\":7,\"enabled\":true,\"filtered\":false}");
+            return Json(AutosyncStatus, AutosyncErrorBody ?? "{\"job_id\":7,\"enabled\":true,\"filtered\":false}");
         }
         if (path.StartsWith("/api/v1/marshmello-connector/operations/", StringComparison.Ordinal))
             return Json(System.Net.HttpStatusCode.OK, ConfirmOperation ? "{\"state\":\"confirmed\",\"queue_id\":42}" : "{\"state\":\"uncertain\"}");

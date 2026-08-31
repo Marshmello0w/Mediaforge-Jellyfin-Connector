@@ -149,6 +149,36 @@ class AutosyncTests(unittest.TestCase):
         self.assertEqual(self.post().status_code, 400)
         self.assertEqual(len(self.creates), 1)
 
+    def test_documented_raw_view_with_stacked_session_wrappers(self):
+        endpoint = 'api_autosync_create'
+        original = self.app.view_functions[endpoint]
+        # The core snapshot is populated after startup module registration.
+        self.app.extensions['mediaforge_raw_views'] = {endpoint: original}
+        self.app.view_functions[endpoint] = lambda: (jsonify({'error': 'session required'}), 401)
+        self.assertEqual(self.post(key='library:read-key').status_code, 401)
+        self.assertEqual(len(self.creates), 0)
+        self.assertEqual(self.post().status_code, 200)
+        self.assertEqual(self.post().get_json()['created'], False)
+        self.assertEqual(len(self.creates), 1)
+        self.assertEqual(self.download_calls, 0)
+
+    def test_raw_view_does_not_strip_its_own_security_checks(self):
+        self.app.extensions['mediaforge_raw_views'] = {
+            'api_autosync_create': lambda: (jsonify({'error': '/private/path sensitive detail'}), 403)
+        }
+        response = self.post()
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.get_json()['code'], 'autosync_core_auth')
+        self.assertNotIn('/private', response.get_data(as_text=True))
+        self.assertEqual(len(self.creates), 0)
+
+    def test_missing_handler_and_unconfirmed_write_have_distinct_errors(self):
+        original = self.app.view_functions.pop('api_autosync_create')
+        self.assertEqual(self.post().get_json()['code'], 'autosync_handler_missing')
+        self.app.view_functions['api_autosync_create'] = lambda: jsonify({'ok': True, 'id': 999})
+        self.assertEqual(self.post().get_json()['code'], 'autosync_confirmation_missing')
+        self.app.view_functions['api_autosync_create'] = original
+
     def test_scopes_movies_source_policy_and_injected_paths(self):
         self.assertEqual(self.post(key='library:read-key').status_code, 401)
         self.assertEqual(self.post(dict(self.body, custom_path_id=88)).status_code, 400)

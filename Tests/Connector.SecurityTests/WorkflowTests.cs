@@ -20,6 +20,7 @@ internal static class WorkflowTests
         await SharedSelections(root);
         await CompleteSubscription(root);
         await LanguageAvailability(root);
+        await AutosyncDiagnostics(root);
         await MigrationAndNotifications(root);
         await BackgroundAndPagination(root);
         await BatchingAndDigests(root);
@@ -84,6 +85,29 @@ internal static class WorkflowTests
         selection.Language = "German Sub";
         plan = await env.App.PlanAsync("one", selection, false, false, Token);
         Check(plan.MissingUrls.Count == 2 && plan.Providers["German Sub"].Contains("VOE"), "Legacy flat provider mapping stopped working.");
+    }
+
+    private static async Task AutosyncDiagnostics(string root)
+    {
+        var env = Create(root, "workflow-autosync-diagnostics", true);
+        env.Handler.AutosyncStatus = HttpStatusCode.BadGateway;
+        env.Handler.AutosyncErrorBody = """{"code":"autosync_core_auth","error":"secret /private/path"}""";
+        var result = await env.App.SubmitAutomaticAsync("one", "One", Selection(), false, Token);
+        Check(result.Request!.AutosyncError!.Contains("interne MediaForge-Anmeldung", StringComparison.Ordinal), "Autosync root cause hidden behind generic retry message.");
+        Check(!result.Request.AutosyncError.Contains("secret", StringComparison.Ordinal), "Raw upstream error leaked.");
+        env.Handler.AutosyncStatus = HttpStatusCode.Forbidden;
+        env.Handler.AutosyncErrorBody = "<html>secret /private/path</html>";
+        await env.App.EnsureAutosyncAsync(result.Request.Id, Token);
+        var updated = await env.Store.GetAsync(result.Request.Id, Token);
+        Check(updated!.AutosyncError!.Contains("queue:write", StringComparison.Ordinal) && updated.AutosyncError.Contains("403", StringComparison.Ordinal), "API scope failure was not classified.");
+        Check(!updated.AutosyncError.Contains("secret", StringComparison.Ordinal), "Proxy error leaked.");
+        env.Handler.AutosyncErrorBody = """{"code":"secret /private/path","error":"secret"}""";
+        await env.App.EnsureAutosyncAsync(result.Request.Id, Token);
+        Check(!(await env.Store.GetAsync(result.Request.Id, Token))!.AutosyncError!.Contains("secret", StringComparison.Ordinal), "Unknown connector code leaked.");
+        env.Handler.AutosyncStatus = HttpStatusCode.OK;
+        env.Handler.AutosyncErrorBody = null;
+        await env.App.EnsureAutosyncAsync(result.Request.Id, Token);
+        Check(env.Handler.DownloadCalls == 1 && (await env.Store.GetAsync(result.Request.Id, Token))!.AutosyncJobId == 7, "Diagnostic retries caused duplicate download.");
     }
 
     private static async Task AutosyncAndRules(string root)

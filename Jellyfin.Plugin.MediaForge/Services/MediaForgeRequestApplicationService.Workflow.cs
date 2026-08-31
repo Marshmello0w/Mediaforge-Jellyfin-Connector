@@ -50,7 +50,9 @@ public sealed partial class MediaForgeRequestApplicationService
             {
                 var message = error is MediaForgeException { StatusCode: HttpStatusCode.NotFound }
                     ? "Das MediaForge-Modul benötigt ein Update für Autosync."
-                    : error is MediaForgeApplicationException appError ? appError.Message : "Autosync konnte noch nicht bestätigt werden. Die Übernahme wird wiederholt.";
+                    : error is MediaForgeApplicationException appError ? appError.Message
+                    : error is MediaForgeException upstreamError ? upstreamError.Message
+                    : "Autosync konnte noch nicht bestätigt werden. Die Übernahme wird wiederholt.";
                 await _store.UpdateWorkflowAsync(id, row =>
                 {
                     row.AutosyncStatus = "retry"; row.AutosyncError = message;

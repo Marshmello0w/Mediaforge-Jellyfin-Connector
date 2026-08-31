@@ -187,3 +187,18 @@ eine Downloadanfrage abgelehnt, nicht als bereits vorhanden bestätigt.
 MediaForge bleibt für tatsächliche Hoster- und Downloadverfügbarkeit maßgeblich.
 Die Bibliotheksprüfung erkennt weiterhin Episoden nach Identität und Nummer,
 nicht einzelne Audiospuren vorhandener Dateien.
+
+## Autosync-Diagnose (0.5.3)
+
+Der Modulaufruf bevorzugt MediaForges öffentlichen Raw-View-Snapshot. Bereits am
+Core-Handler vorhandene fachliche Prüfungen werden nicht entfernt. Autosync-Fehler
+verwenden feste Codes und HTTP-Status; der Client liest höchstens 4 KiB Fehlerdaten
+und zeigt ausschließlich lokal definierte Texte an. Unbekannte Codes und
+Upstream-Fehlertexte werden nie weitergereicht.
+
+### Test gegen MediaForge 1.6.0
+
+`python scripts/verify-mediaforge-contract.py --source /path/to/MediaForge`
+prüft mit einem lokalen Checkout von Tag `v1.6.0` die tatsächlichen Core-Funktionen
+gegen eine temporäre SQLite-Datenbank. Providerzugriffe und Downloadworker werden
+nicht gestartet. Flask aus den Test-Abhängigkeiten muss installiert sein.

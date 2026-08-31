@@ -1,9 +1,9 @@
 # MediaForge Module: Jellyfin Connector
 
-Version 0.5.2 separates this fork from the official connector using the
+Version 0.5.3 separates this fork from the official connector using the
 `marshmello_jellyfin_connector` identity, folder and blueprint, and the
 `/api/v1/marshmello-connector/` API. Install **Jellyfin Connector - Marshmello**
-as a separate module and update the Jellyfin plugin to 0.5.2 as well. The official
+as a separate module and update the Jellyfin plugin to 0.5.3 as well. The official
 module can remain installed; it serves different routes. Existing AutoSync
 registration and durable download handoff receipts are retained. Back up
 `jellyfin-connector-receipts.sqlite3` in the MediaForge configuration directory
@@ -71,8 +71,15 @@ The companion Jellyfin plugin checks existing films and episodes directly in
 the Jellyfin library. This MediaForge module therefore performs no filesystem
 or provider-page `downloaded` correction of its own.
 
-### Autosync-Korrektur in 0.5.2
+### Autosync-Korrektur in 0.5.3
 
 Normale Serienantworten von MediaForge enthalten häufig kein `is_movie`-Feld.
 Diese werden jetzt korrekt akzeptiert; Filmantworten und fehlerhafte Metadaten
 bleiben ausgeschlossen. Ausstehende Aufträge werden ohne erneuten Download übernommen.
+
+### Dokumentierter Core-Aufruf
+
+Ab 0.5.3 wird `app.extensions["mediaforge_raw_views"]` bevorzugt. Die eigene
+API-Key-Authentifizierung und Quellenprüfung bleiben bestehen. Die Health-Antwort
+enthält `autosync_runtime.handler_available` und `autosync_runtime.uses_raw_views`.
+Nach Modul-Updates MediaForge neu starten; laufende Version in der Diagnose prüfen.

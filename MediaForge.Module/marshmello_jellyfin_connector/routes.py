@@ -38,6 +38,20 @@ _PROGRESS_PHASES = {"download", "ffmpeg"}
 _AUTOSYNC_LOCK = threading.Lock()
 
 
+def _core_view(app, endpoint):
+    """Use MediaForge's public pre-auth view snapshot (Module API contract).
+
+    The API-key guard on every connector endpoint is the authentication
+    boundary. Do not inspect arbitrary decorator closures. The narrow legacy
+    fallback is only for builds predating mediaforge_raw_views.
+    """
+    raw = app.extensions.get("mediaforge_raw_views", {}).get(endpoint)
+    if callable(raw):
+        return raw
+    view = app.view_functions.get(endpoint)
+    return _without_mediaforge_session_login(view) if view is not None else None
+
+
 def _without_mediaforge_session_login(view):
     """Remove only MediaForge's own ``login_required`` wrapper.
 
@@ -297,7 +311,7 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
         )
 
     internal = {
-        key: _without_mediaforge_session_login(app.view_functions[name])
+        key: _core_view(app, name)
         for key, name in _ROUTE_NAMES.items()
     }
 
@@ -306,10 +320,7 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
         # Resolve these two handlers only when a request arrives, by which time
         # application startup is complete. This also works for a live module
         # install, where the handlers already exist.
-        view = current_app.view_functions.get(endpoint)
-        if view is None:
-            return None
-        return _without_mediaforge_session_login(view)
+        return _core_view(current_app, endpoint)
 
     bp = Blueprint("marshmello_jellyfin_connector", __name__)
 
@@ -363,7 +374,7 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
         # Resolve late: the core registers these routes after third parties.
         handler = late_internal("api_autosync_create")
         if handler is None:
-            return jsonify({"error": "autosync unavailable"}), 503
+            return jsonify({"error": "autosync unavailable", "code": "autosync_handler_missing"}), 503
         # SQLite additionally serializes creates across WSGI processes.
         with _AUTOSYNC_LOCK, ledger().connect() as lock_db:
             lock_db.execute("BEGIN IMMEDIATE")
@@ -381,7 +392,7 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
                         or not _safe_text(metadata.get("title"), 300)
                         or "error" in metadata
                         or ("is_movie" in metadata and metadata["is_movie"] is not False)):
-                    return jsonify({"error": "a verified series is required"}), 400
+                    return jsonify({"error": "a verified series is required", "code": "autosync_series_unverified"}), 400
                 data = dict(body)
                 data["custom_path_id"] = _default_custom_path_id(body["series_url"])
                 try:
@@ -393,12 +404,16 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
                         created = True
                     elif response.status_code == 409:
                         job = find_autosync_by_url(body["series_url"])
+                    elif response.status_code in (401, 403):
+                        return jsonify({"error": "core authorization rejected", "code": "autosync_core_auth"}), 502
+                    elif response.status_code == 400:
+                        return jsonify({"error": "autosync options rejected", "code": "autosync_options_rejected"}), 400
                     else:
-                        return jsonify({"error": "autosync creation failed"}), 502
+                        return jsonify({"error": "autosync creation failed", "code": "autosync_create_failed"}), 502
                 except sqlite3.IntegrityError:
                     job = find_autosync_by_url(body["series_url"])
             if not isinstance(job, dict):
-                return jsonify({"error": "autosync confirmation unavailable"}), 503
+                return jsonify({"error": "autosync confirmation unavailable", "code": "autosync_confirmation_missing"}), 503
             return jsonify({"job_id": job["id"], "created": created,
                             "enabled": bool(job.get("enabled", 1)),
                             "on_hold": bool(job.get("on_hold", 0)),
@@ -420,6 +435,10 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
                 "module": "marshmello_jellyfin_connector",
                 "version": module_version,
                 "capabilities": ["autosync", "download-receipts"],
+                "autosync_runtime": {
+                    "handler_available": late_internal("api_autosync_create") is not None,
+                    "uses_raw_views": callable(current_app.extensions.get("mediaforge_raw_views", {}).get("api_autosync_create")),
+                },
                 "permissions": {scope: check_api_key(scope) is None for scope in ("status:read", "library:read", "queue:read", "queue:write")},
             }
         )

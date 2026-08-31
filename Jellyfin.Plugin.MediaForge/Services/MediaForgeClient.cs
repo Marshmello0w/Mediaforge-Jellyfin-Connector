@@ -303,6 +303,8 @@ public sealed class MediaForgeClient
             {
                 if (!response.IsSuccessStatusCode)
                 {
+                    if (relativePath == "api/v1/marshmello-connector/autosync")
+                        throw await SafeAutosyncErrorAsync(response, requestToken).ConfigureAwait(false);
                     throw SafeUpstreamError(response.StatusCode);
                 }
 
@@ -381,6 +383,49 @@ public sealed class MediaForgeClient
         {
             return false;
         }
+    }
+
+    private static async Task<MediaForgeException> SafeAutosyncErrorAsync(HttpResponseMessage response, CancellationToken token)
+    {
+        string? code = null;
+        // Never display upstream error text, keys or paths. Only recognize
+        // this connector's small, fixed error-code vocabulary.
+        try
+        {
+            await using var stream = await response.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+            var bytes = new byte[4097];
+            var length = 0;
+            while (length < bytes.Length)
+            {
+                var read = await stream.ReadAsync(bytes.AsMemory(length), token).ConfigureAwait(false);
+                if (read == 0) break;
+                length += read;
+            }
+            if (length <= 4096)
+            {
+                using var json = JsonDocument.Parse(bytes.AsMemory(0, length), new JsonDocumentOptions { MaxDepth = 8 });
+                if (json.RootElement.ValueKind == JsonValueKind.Object && json.RootElement.TryGetProperty("code", out var value) && value.ValueKind == JsonValueKind.String)
+                    code = value.GetString();
+            }
+        }
+        catch (JsonException) { /* HTML/proxy errors are represented by HTTP status only. */ }
+        var message = code switch
+        {
+            "autosync_handler_missing" => "Die Autosync-Funktion wurde in MediaForge nicht geladen. MediaForge neu starten und Modul-Diagnose prüfen.",
+            "autosync_series_unverified" => "MediaForge konnte den Titel nicht als zugängliche Serie bestätigen.",
+            "autosync_core_auth" => "Die interne MediaForge-Anmeldung blockiert Autosync. Modul aktualisieren und MediaForge neu starten.",
+            "autosync_options_rejected" => "MediaForge hat die Autosync-Einstellungen abgelehnt. Sprache beziehungsweise Sprachgruppe prüfen.",
+            "autosync_confirmation_missing" => "MediaForge hat keinen gespeicherten Autosync-Eintrag bestätigt. Es wird nur die Abo-Übernahme wiederholt.",
+            "autosync_create_failed" => "Beim Anlegen des Autosync-Abos ist ein interner MediaForge-Fehler aufgetreten. MediaForge-Protokoll prüfen.",
+            _ => response.StatusCode switch
+            {
+                HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "Autosync wurde nicht autorisiert. MediaForge-API-Schlüssel, queue:write und Quellenfreigabe prüfen.",
+                HttpStatusCode.NotFound => "Das geladene MediaForge-Modul stellt keinen Autosync-Endpunkt bereit. Modul aktualisieren und MediaForge neu starten.",
+                HttpStatusCode.BadRequest => "MediaForge hat den Autosync-Auftrag abgelehnt. Serien-URL, Sprache und Provider prüfen.",
+                _ => "Autosync ist fehlgeschlagen. MediaForge-Protokoll und Modul-Diagnose prüfen.",
+            },
+        };
+        return new MediaForgeException(HttpStatusCode.BadGateway, $"{message} (HTTP {(int)response.StatusCode})", response.StatusCode);
     }
 
     private static MediaForgeException SafeUpstreamError(HttpStatusCode statusCode)
