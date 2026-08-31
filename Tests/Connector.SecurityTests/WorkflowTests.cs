@@ -19,6 +19,7 @@ internal static class WorkflowTests
         await CrashAndReconcile(root);
         await SharedSelections(root);
         await CompleteSubscription(root);
+        await LanguageAvailability(root);
         await MigrationAndNotifications(root);
         await BackgroundAndPagination(root);
         await BatchingAndDigests(root);
@@ -54,6 +55,36 @@ internal static class WorkflowTests
         Title = "Test", SeriesUrl = "https://example.invalid/series/search-result", Source = "source-a",
         MediaType = "series", Language = "German Dub", Provider = "VOE", SubscribeOnly = subscribe,
     };
+
+    private static async Task LanguageAvailability(string root)
+    {
+        var env = Create(root, "workflow-languages");
+        env.Handler.MixedLanguages = true;
+        var selection = Selection(); selection.Language = "";
+        var plan = await env.App.PlanAsync("one", selection, false, false, Token);
+        Check(plan.Languages.Contains("German Dub") && plan.Languages.Contains("German Sub") && plan.Languages.Contains("English Sub"), "Partially available dub disappeared from the plan.");
+        Check(plan.Providers["German Dub"].Contains("VOE"), "Nested providers or language representative was ignored.");
+        Check(plan.LanguageCounts["German Dub"] == 1 && plan.LanguageCounts["German Sub"] == 2, "Per-language availability counts are wrong.");
+        selection.Language = "German Dub";
+        plan = await env.App.PlanAsync("one", selection, false, false, Token);
+        Check(plan.MissingUrls.Count == 1 && plan.ToResponse().ExistingCount == 0 && plan.UnavailableCount == 1, "Unavailable dub counted as present or queued as a subtitle.");
+        var result = await env.App.SubmitAutomaticAsync("one", "One", selection, false, Token);
+        var approved = await env.App.ApproveAsync(result.Request!.Id, "Admin", Token);
+        Check(approved.Status == "queued" && env.Handler.LastEpisodes.SequenceEqual(new[] { "https://example.invalid/episode/2" }), "Approval lost the selected dub language.");
+        Check(approved.ExpectedEpisodes.SequenceEqual(new[] { new LibraryEpisodeKey(1, 2) }), "Library monitoring waits for unrequested subtitle-only episodes.");
+        Check(env.Handler.AutosyncCalls == 1, "Partial dub selection did not subscribe for future episodes.");
+        selection.Language = "French Dub";
+        try
+        {
+            await env.App.SubmitAutomaticAsync("two", "Two", selection, false, Token);
+            throw new InvalidOperationException("Unknown language was accepted as already available.");
+        }
+        catch (MediaForgeApplicationException error) when (error.StatusCode == HttpStatusCode.BadRequest) { }
+        env.Handler.FlatProviders = true;
+        selection.Language = "German Sub";
+        plan = await env.App.PlanAsync("one", selection, false, false, Token);
+        Check(plan.MissingUrls.Count == 2 && plan.Providers["German Sub"].Contains("VOE"), "Legacy flat provider mapping stopped working.");
+    }
 
     private static async Task AutosyncAndRules(string root)
     {

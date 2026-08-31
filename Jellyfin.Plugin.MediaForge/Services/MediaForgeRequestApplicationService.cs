@@ -522,6 +522,8 @@ public sealed partial class MediaForgeRequestApplicationService
                         SeriesUrl = request.SeriesUrl,
                         Source = request.Source,
                         MediaType = request.MediaType,
+                        Language = request.Language,
+                        Provider = request.Provider,
                     },
                     cancellationToken,
                     requireGrant: false).ConfigureAwait(false);
@@ -675,7 +677,9 @@ public sealed partial class MediaForgeRequestApplicationService
 
         var missing = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        HashSet<string>? languages = null;
+        var languages = new HashSet<string>(StringComparer.Ordinal);
+        var allEpisodes = new List<MediaForgeEpisode>();
+        var missingEpisodes = new List<MediaForgeEpisode>();
         var total = 0;
         var expectedEpisodes = new List<LibraryEpisodeKey>();
         foreach (var season in seasonItems)
@@ -718,24 +722,10 @@ public sealed partial class MediaForgeRequestApplicationService
                     : episode.SeasonNumber.HasValue
                         && episode.EpisodeNumber.HasValue
                         && libraryState.Episodes.Contains(new LibraryEpisodeKey(episode.SeasonNumber.Value, episode.EpisodeNumber.Value));
-                if (episode.SeasonNumber.HasValue && episode.EpisodeNumber.HasValue)
-                    expectedEpisodes.Add(new LibraryEpisodeKey(episode.SeasonNumber.Value, episode.EpisodeNumber.Value));
-                if (alreadyAvailable)
-                {
-                    continue;
-                }
-
-                if (episode.Languages.Count > 0)
-                {
-                    if (languages is null)
-                    {
-                        languages = new HashSet<string>(episode.Languages, StringComparer.Ordinal);
-                    }
-                    else
-                    {
-                        languages.IntersectWith(episode.Languages);
-                    }
-                }
+                allEpisodes.Add(episode);
+                languages.UnionWith(episode.Languages);
+                if (alreadyAvailable) continue;
+                missingEpisodes.Add(episode);
 
                 missing.Add(episode.Url);
                 if (missing.Count > MaxEpisodesPerRequest)
@@ -752,19 +742,41 @@ public sealed partial class MediaForgeRequestApplicationService
             throw new MediaForgeApplicationException(HttpStatusCode.NotFound, "Für diesen Titel wurden keine verfügbaren Episoden gefunden.");
         }
 
+        // Keep each language advertised by at least one episode. A later
+        // subtitle-only episode must not hide an earlier German dub.
+        // Probe one representative per language, not only the first episode.
+        var providers = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+        var probed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var language in languages.DefaultIfEmpty(string.Empty).ToArray())
+        {
+            var representative = missingEpisodes.FirstOrDefault(e => e.Languages.Contains(language))
+                ?? allEpisodes.FirstOrDefault(e => e.Languages.Contains(language)) ?? allEpisodes[0];
+            if (!probed.Add(representative.Url)) continue;
+            var options = await ReadProviderOptionsAsync(userId, request.Source, representative.Url, cancellationToken).ConfigureAwait(false);
+            foreach (var option in options)
+                providers[option.Key] = providers.TryGetValue(option.Key, out var known)
+                    ? known.Concat(option.Value).Distinct(StringComparer.Ordinal).ToArray() : option.Value;
+        }
+        languages.UnionWith(providers.Keys);
+        var counts = languages.ToDictionary(language => language,
+            language => missingEpisodes.Count(e => e.Languages.Count == 0 || e.Languages.Contains(language)), StringComparer.Ordinal);
+        var selected = string.IsNullOrEmpty(request.Language) ? missingEpisodes
+            : missingEpisodes.Where(e => e.Languages.Count == 0 || e.Languages.Contains(request.Language)).ToList();
+        var unavailableCount = missingEpisodes.Count - selected.Count;
+        // An unavailable dub is not evidence that Jellyfin already has it.
+        if (missingEpisodes.Count > 0 && selected.Count == 0 && !string.IsNullOrEmpty(request.Language))
+            throw new MediaForgeApplicationException(HttpStatusCode.BadRequest,
+                "Für die fehlenden Folgen ist die gewählte Sprache derzeit nicht verfügbar. Bitte eine andere Sprache auswählen.");
+        missing = selected.Select(e => e.Url).ToList();
+        expectedEpisodes = selected.Where(e => e.SeasonNumber.HasValue && e.EpisodeNumber.HasValue)
+            .Select(e => new LibraryEpisodeKey(e.SeasonNumber!.Value, e.EpisodeNumber!.Value)).ToList();
         var selectionLabel = isMovie ? "Film" : missing.Count == 1 ? "1 fehlende Episode" : $"{missing.Count} fehlende Episoden";
-        var providers = missing.Count == 0
-            ? new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
-            : await ReadProviderOptionsAsync(userId, request.Source, missing[0], cancellationToken).ConfigureAwait(false);
-        return new MissingMediaPlan(
-            title,
-            description,
-            isMovie,
-            total,
-            missing,
-            selectionLabel,
-            languages is null ? [] : languages.Order(StringComparer.Ordinal).ToArray(),
-            providers) { Identity = identity, ExpectedEpisodes = expectedEpisodes };
+        return new MissingMediaPlan(title, description, isMovie, total, missing, selectionLabel,
+            languages.Order(StringComparer.Ordinal).ToArray(), providers)
+        {
+            Identity = identity, ExpectedEpisodes = expectedEpisodes,
+            UnavailableCount = unavailableCount, LanguageCounts = counts,
+        };
     }
 
     internal static int ReadExpectedEpisodeCount(JsonElement season)
@@ -793,6 +805,13 @@ public sealed partial class MediaForgeRequestApplicationService
                 return new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
             }
 
+            // Current MediaForge wraps the mapping; retain legacy flat replies.
+            if (response.TryGetProperty("providers", out var nested))
+            {
+                if (nested.ValueKind != JsonValueKind.Object)
+                    return new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
+                response = nested;
+            }
             var output = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
             foreach (var property in response.EnumerateObject())
             {
@@ -1226,6 +1245,8 @@ public sealed record MissingMediaPlan(
     IReadOnlyList<string> Languages,
     IReadOnlyDictionary<string, IReadOnlyList<string>> Providers)
 {
+    public int UnavailableCount { get; init; }
+    public IReadOnlyDictionary<string, int> LanguageCounts { get; init; } = new Dictionary<string, int>();
     public LibraryMediaIdentity? Identity { get; init; }
     public List<LibraryEpisodeKey> ExpectedEpisodes { get; init; } = [];
     public MissingPlanResponse ToResponse()
@@ -1234,11 +1255,11 @@ public sealed record MissingMediaPlan(
             Description,
             IsMovie,
             TotalCount,
-            TotalCount - MissingUrls.Count,
+            TotalCount - MissingUrls.Count - UnavailableCount,
             MissingUrls.Count,
             SelectionLabel,
             Languages,
-            Providers);
+            Providers) { UnavailableCount = UnavailableCount, LanguageCounts = LanguageCounts };
 }
 
 public sealed record MissingPlanResponse(
@@ -1250,7 +1271,11 @@ public sealed record MissingPlanResponse(
     [property: JsonPropertyName("missing_count")] int MissingCount,
     [property: JsonPropertyName("selection_label")] string SelectionLabel,
     [property: JsonPropertyName("languages")] IReadOnlyList<string> Languages,
-    [property: JsonPropertyName("providers")] IReadOnlyDictionary<string, IReadOnlyList<string>> Providers);
+    [property: JsonPropertyName("providers")] IReadOnlyDictionary<string, IReadOnlyList<string>> Providers)
+{
+    [JsonPropertyName("unavailable_count")] public int UnavailableCount { get; init; }
+    [JsonPropertyName("language_counts")] public IReadOnlyDictionary<string, int> LanguageCounts { get; init; } = new Dictionary<string, int>();
+}
 
 public enum SubmitDisposition
 {

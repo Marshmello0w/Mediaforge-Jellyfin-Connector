@@ -79,6 +79,8 @@ class AutosyncTests(unittest.TestCase):
         self.queue = []
         self.creates = []
         self.is_movie = False
+        self.omit_movie_flag = True
+        self.metadata_error = False
         self.adult = False
         self.enabled = True
         self.download_calls = 0
@@ -107,7 +109,12 @@ class AutosyncTests(unittest.TestCase):
             if endpoint == 'api_search_sources':
                 return jsonify({"sources": [{"id": "aniworld", "adult": self.adult, "enabled": self.enabled}]})
             if endpoint == 'api_series':
-                return jsonify({"title": "Series", "is_movie": self.is_movie})
+                if self.metadata_error:
+                    return jsonify({"error": "private upstream message"})
+                metadata = {"title": "Series"}
+                if self.is_movie or not self.omit_movie_flag:
+                    metadata['is_movie'] = self.is_movie
+                return jsonify(metadata)
             if endpoint == 'api_download':
                 self.download_calls += 1
                 self.queue.append(dict(request.get_json(), id=42))
@@ -133,6 +140,14 @@ class AutosyncTests(unittest.TestCase):
         self.assertEqual(self.jobs[7]['custom_path_id'], 99)
         self.assertEqual(self.creates, [])
         self.assertNotIn('private-user', json.dumps(result))
+
+    def test_explicit_series_flag_and_invalid_metadata(self):
+        self.omit_movie_flag = False
+        self.assertEqual(self.post().status_code, 200)
+        self.jobs.clear()
+        self.metadata_error = True
+        self.assertEqual(self.post().status_code, 400)
+        self.assertEqual(len(self.creates), 1)
 
     def test_scopes_movies_source_policy_and_injected_paths(self):
         self.assertEqual(self.post(key='library:read-key').status_code, 401)

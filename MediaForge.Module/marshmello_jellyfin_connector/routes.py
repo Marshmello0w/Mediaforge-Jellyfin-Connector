@@ -375,7 +375,12 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
                 with current_app.test_request_context("/api/series", query_string={"url": body["series_url"]}, headers={"X-Api-Key": request.headers.get("X-Api-Key", "")}):
                     detail = current_app.make_response(internal["series"]())
                     metadata = detail.get_json(silent=True)
-                if detail.status_code != 200 or not isinstance(metadata, dict) or metadata.get("is_movie") is not False:
+                # Core 1.5/1.6 only sends is_movie for movies. A successful
+                # series response with a title and no flag is a series too.
+                if (detail.status_code != 200 or not isinstance(metadata, dict)
+                        or not _safe_text(metadata.get("title"), 300)
+                        or "error" in metadata
+                        or ("is_movie" in metadata and metadata["is_movie"] is not False)):
                     return jsonify({"error": "a verified series is required"}), 400
                 data = dict(body)
                 data["custom_path_id"] = _default_custom_path_id(body["series_url"])
@@ -383,7 +388,7 @@ def create_blueprint(app, enabled_setting_key: str, module_version: str = "unkno
                     with current_app.test_request_context("/api/autosync", method="POST", json=data, headers={"X-Api-Key": request.headers.get("X-Api-Key", "")}):
                         response = current_app.make_response(handler())
                         result = response.get_json(silent=True) or {}
-                    if response.status_code == 200:
+                    if response.status_code in (200, 201):
                         job = get_autosync_job(result.get("id"))
                         created = True
                     elif response.status_code == 409:

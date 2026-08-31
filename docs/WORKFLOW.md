@@ -175,3 +175,15 @@ user rules, migration, notification isolation/digests and 200-ID batching.
 An actual Jellyfin/MediaForge installation is still needed for deployment
 acceptance: verify source-specific provider resolution, download directories,
 library naming and the arrival of a new episode under the real AutoSync worker.
+
+## Sprachverfügbarkeit (0.5.2)
+
+Die Planung bildet die Vereinigung der ausgewiesenen Episodensprachen und hält
+Dub/Sub getrennt. `language_counts` ergänzt die Planantwort um die Anzahl fehlender
+Folgen je Sprache. Mit ausgewählter Sprache enthält `missing_count` nur passende
+Folgen; `unavailable_count` zählt fehlende Folgen ohne diese Sprache separat.
+Diese zählen ausdrücklich nicht zu `existing_count`. Ohne passende Folgen wird
+eine Downloadanfrage abgelehnt, nicht als bereits vorhanden bestätigt.
+MediaForge bleibt für tatsächliche Hoster- und Downloadverfügbarkeit maßgeblich.
+Die Bibliotheksprüfung erkennt weiterhin Episoden nach Identität und Nummer,
+nicht einzelne Audiospuren vorhandener Dateien.

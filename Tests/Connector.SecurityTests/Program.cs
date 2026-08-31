@@ -1225,6 +1225,9 @@ public sealed class FakeMediaForgeHandler : HttpMessageHandler
     public bool ReportCompleted { get; set; }
     public bool SupportsReceipts { get; set; }
     public bool IsMovie { get; set; }
+    public bool MixedLanguages { get; set; }
+    public bool FlatProviders { get; set; }
+    public List<string> LastEpisodes { get; private set; } = [];
     public string? LastOperationId { get; private set; }
     public List<int> ProgressBatchSizes { get; } = [];
     public int RequestCount { get; private set; }
@@ -1259,6 +1262,7 @@ public sealed class FakeMediaForgeHandler : HttpMessageHandler
             DownloadCalls++;
             using var payload = JsonDocument.Parse(request.Content!.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult());
             LastOperationId = payload.RootElement.TryGetProperty("operation_id", out var operation) ? operation.GetString() : null;
+            LastEpisodes = payload.RootElement.GetProperty("episodes").EnumerateArray().Select(e => e.GetString()!).ToList();
             if (LoseDownloadResponse) throw new HttpRequestException("Simulated connection loss after write");
         }
         if (path == "/api/v1/marshmello-connector/progress")
@@ -1267,6 +1271,17 @@ public sealed class FakeMediaForgeHandler : HttpMessageHandler
             var ids = payload.RootElement.GetProperty("queue_ids").EnumerateArray().Select(x => x.GetInt64()).ToArray();
             ProgressBatchSizes.Add(ids.Length);
             if (ReportCompleted) return Json(System.Net.HttpStatusCode.OK, JsonSerializer.Serialize(new { items = ids.Select(id => new { queue_id = id, status = "completed", percent = 100, current_episode = 1, total_episodes = 1 }) }));
+        }
+        if (MixedLanguages && path == "/api/v1/marshmello-connector/seasons")
+            return Json(System.Net.HttpStatusCode.OK, """{"seasons":[{"url":"https://example.invalid/season/1","season_number":1,"episode_count":2}]}""");
+        if (MixedLanguages && path == "/api/v1/marshmello-connector/episodes")
+            return Json(System.Net.HttpStatusCode.OK, """{"episodes":[{"url":"https://example.invalid/episode/1","season_number":1,"episode_number":1,"languages":["German Sub","English Sub"]},{"url":"https://example.invalid/episode/2","season_number":1,"episode_number":2,"languages":["German Dub","German Sub","English Sub"]}]}""");
+        if (path == "/api/v1/marshmello-connector/providers")
+        {
+            var mapping = MixedLanguages && request.RequestUri!.Query.Contains("episode%2F1", StringComparison.OrdinalIgnoreCase)
+                ? "\"German Sub\":[\"VOE\"],\"English Sub\":[\"VOE\"]"
+                : "\"German Dub\":[\"VOE\"],\"German Sub\":[\"VOE\"],\"English Sub\":[\"VOE\"]";
+            return Json(System.Net.HttpStatusCode.OK, FlatProviders ? "{" + mapping + "}" : "{\"providers\":{" + mapping + "}}");
         }
         return path switch
         {

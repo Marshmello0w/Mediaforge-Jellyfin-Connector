@@ -223,13 +223,13 @@ export default function (view, params) {
       state.detail = Object.assign(payload, { title: plan.title || payload.title, plan });
       q('detail-title').textContent = state.detail.title;
       q('description').textContent = plan.description || 'Keine Beschreibung verfügbar.';
-      const languages = Array.isArray(plan.languages) && plan.languages.length ? plan.languages : [state.status.defaultLanguage || 'German Dub'];
+      const languages = Array.isArray(plan.languages) && plan.languages.length ? plan.languages : (!plan.missing_count ? [state.status.defaultLanguage || 'German Dub'] : []);
       setOptions(q('language'), languages, state.status.defaultLanguage);
       const syncProviders = () => {
         const available = plan.providers && Array.isArray(plan.providers[q('language').value]) ? plan.providers[q('language').value] : [];
         setOptions(q('provider'), available.length ? available : [state.status.defaultProvider || 'VOE'], state.status.defaultProvider);
       };
-      q('language').onchange = syncProviders; syncProviders();
+      syncProviders();
       q('plan').innerHTML = '';
       const summary = document.createElement('div'); summary.className = 'mf-plan ' + (plan.missing_count ? '' : 'complete');
       if (plan.missing_count) {
@@ -245,6 +245,18 @@ export default function (view, params) {
       q('plan').appendChild(summary);
       q('request').textContent = !plan.missing_count && !plan.is_movie ? 'Zukünftige Folgen abonnieren' : 'Anfragen';
       q('request').disabled = !plan.missing_count && plan.is_movie;
+      const updateLanguageSummary = () => {
+        if (!plan.missing_count) return;
+        const count = plan.language_counts && Number.isInteger(plan.language_counts[q('language').value])
+          ? plan.language_counts[q('language').value] : plan.missing_count;
+        q('request').textContent = 'Anfragen';
+        q('request').disabled = !languages.length || count === 0;
+        summary.textContent = !languages.length ? 'Die verfügbaren Sprachen konnten nicht ermittelt werden. Bitte später erneut öffnen.'
+          : count + ' von ' + plan.missing_count + ' fehlenden Folgen sind in ' + q('language').value + ' verfügbar.'
+            + (count < plan.missing_count ? ' Nur diese werden angefragt. Weitere Folgen in dieser Sprache werden über Autosync beobachtet, sofern Serien-Abos erlaubt sind.' : ' Es werden ausschließlich diese fehlenden Inhalte angefragt.');
+      };
+      q('language').onchange = () => { syncProviders(); updateLanguageSummary(); };
+      updateLanguageSummary();
       if (plan.missing_count) {
         const matching = await call('Requests/Matching', { method: 'POST', body: { ...payload, language: q('language').value, provider: q('provider').value } });
         if (generation === detailGeneration && matching.exists) q('request').textContent = 'Ebenfalls interessiert';
