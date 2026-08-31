@@ -6,80 +6,9 @@ Downloads; neu freigegebene Serien werden zusätzlich dauerhaft in Autosync aufg
 
 **Version: 0.5.6 · Jellyfin ab 10.11 · MediaForge 1.5.x / 1.6.x**
 
-## Neu in 0.5.6: Eigener Admin-Tab für Benutzerregeln
+[Änderungsverlauf aller Fork-Versionen](changelog.md)
 
-Im Adminbereich gibt es jetzt die Untertabs **Anfragen** und **Benutzerregeln**.
-Unter Benutzerregeln lassen sich Freigabemodus, Anfragelimit und Serien-Abos wie
-bisher bearbeiten. Darunter stehen alle Benutzer mit individuell aktivierter
-automatischer Freigabe. Das **× rechts neben dem Namen** setzt ausschließlich
-diesen Freigabemodus auf **Globale Einstellung** zurück; Limit und Abo-Berechtigung
-bleiben erhalten. Ist die globale Freigabe automatisch, bleibt sie auch danach
-automatisch. Benutzer, die diese Einstellung nur global erben, stehen nicht in der Liste.
-
-Für die neue Oberfläche das Jellyfin-Plugin auf **0.5.6.0** aktualisieren, Jellyfin
-neu starten und Jellyfin-Web neu laden. Ein MediaForge-Modulupdate ist dafür nicht nötig.
-
-## Neu in 0.5.5: Menüzähler und neueste Anfragen zuerst
-
-Am Drei-Striche-Menü und direkt neben „Anfragen“ in Jellyfin-Web erscheint derselbe kleine rote Kreis mit
-weißer Zahl, sobald Anfragen auf Freigabe warten. Kein Popup und kein zusätzlicher
-Textkasten. Bei null offenen Freigaben verschwindet der Kreis; normale Benutzer
-sehen ihn nicht. Das Menü bleibt normal bedienbar.
-
-Die Anzahl wird bei sichtbarem Browserfenster alle 30 Sekunden aktualisiert,
-zusätzlich nach Freigabe/Ablehnung im Plugin und beim Zurückkehren zur Seite.
-Vollständig geteilte Anfragen werden in der Freigabeliste und im Zähler einmal
-gezählt. Ab 100 zeigt der Kreis `99+`; die genaue Zahl bleibt für Screenreader verfügbar.
-Beim Abmelden, Benutzerwechsel oder fehlender Berechtigung wird der Zähler entfernt.
-
-Eigene Anfragen und die Adminliste sind nach Anfragedatum von neu nach alt sortiert,
-unabhängig vom Status. Neue Einträge erscheinen auch bei laufender Aktualisierung
-oben; unveränderte Karten, Auswahl und aufgeklappte Verläufe bleiben erhalten.
-Adminfilter und Seitennavigation funktionieren weiterhin.
-
-Für diese Funktion genügt das Jellyfin-Plugin **0.5.5.0**: Jellyfin nach dem Update
-neu starten und Jellyfin-Web neu laden (gegebenenfalls den Browser-Cache leeren).
-Die bestehende Web-Einbindung des Plugins muss aktiviert sein (`EnableAllUsers`,
-standardmäßig aktiv). Native Clients ohne Jellyfin-Web erhalten diesen Menüpunkt
-nicht automatisch. Die MediaForge-Modulfunktionen sind gegenüber 0.5.3 unverändert.
-
-## Autosync-Korrektur und Diagnose in 0.5.3
-
-Der Connector verwendet jetzt die dokumentierte `mediaforge_raw_views`-Schnittstelle
-für interne MediaForge-Aufrufe, auch wenn Autosync erst nach dem Modul registriert
-wird. Unter älteren Builds bleibt der eingeschränkte Kompatibilitätsweg erhalten.
-API-Key-Prüfung, `queue:write`, Quellenfreigaben und Serienprüfung bleiben erforderlich.
-
-Die Admin-Diagnose zeigt zusätzlich, ob die Autosync-Funktion geladen ist und der
-Core-Aufruf über die Modul-API läuft. Autosync-Fehler werden mit einer sicheren
-Ursachenbeschreibung und HTTP-Status angezeigt; interne Fehlermeldungen, Schlüssel
-oder Dateipfade werden nicht weitergegeben. Ein Retry verändert keine Download-Queue.
-
-Getestet mit den realen Autosync-, Authentifizierungs- und SQLite-Funktionen aus
-MediaForge **v1.6.0**, zusätzlich zu den automatisierten Connector-Regressionstests.
-Das ersetzt keine Prüfung der jeweiligen laufenden Serverkonfiguration.
-
-Referenz: [MediaForge Module API – mediaforge_raw_views](https://github.com/PD-Codes/MediaForge/wiki/Module-API#reaching-a-core-view-without-a-session-mediaforge_raw_views).
-
-## Sprachkorrekturen seit 0.5.2
-
-- German Dub, German Sub und English Sub bleiben getrennt auswählbar, auch wenn
-  die Synchronisation noch nicht für alle Staffeln und Folgen vorliegt.
-- Der Dialog zeigt die Anzahl fehlender Folgen pro Sprache. Angefragt werden nur
-  Folgen, die laut MediaForge in dieser Sprache verfügbar sind; die Freigabe prüft
-  dieselbe Sprachauswahl erneut. Nicht verfügbare Folgen gelten nicht als vorhanden.
-- Die Hoster-Auswahl verarbeitet MediaForges verschachtelte `providers`-Antwort
-  sowie das ältere flache Format und prüft passende Beispielfolgen je Sprache.
-- Autosync akzeptiert die Serienantworten von MediaForge 1.5/1.6 ohne `is_movie`-Feld.
-  Filme, fehlerhafte Antworten, gesperrte Quellen und unberechtigte Aufrufe bleiben gesperrt.
-
-**Update:** Zuerst das MediaForge-Modul auf **0.5.3** aktualisieren und MediaForge
-neu starten; danach das Jellyfin-Plugin auf **0.5.3.0** aktualisieren und Jellyfin
-neu starten. Bereits ausstehende Autosync-Aufträge werden automatisch erneut versucht.
-Admins können alternativ **Nur Autosync erneut versuchen** wählen. Dafür keine
-neue Downloadanfrage anlegen. Bestehende Autosync-Pausen und Zielordner bleiben erhalten.
-
-## Wechsel auf die Marshmello-Variante (seit 0.5.1)
+## Wechsel auf die Marshmello-Variante
 
 Diese Variante hat die eigene Modul-ID und den eigenen Installationsordner
 `marshmello_jellyfin_connector`. Im Store heißt sie **Jellyfin Connector – Marshmello**.
@@ -90,8 +19,8 @@ da MediaForge den offiziellen Store bei gleichen IDs bevorzugt.
 1. Den aktualisierten Quellstand einschließlich `module-store` auf GitHub hochladen.
 2. In MediaForge den zusätzlichen Store aktualisieren und **Jellyfin Connector – Marshmello**
    neu installieren. Die neue ID ist eine separate Installation, kein Update der offiziellen Karte.
-3. MediaForge neu starten. Die Marshmello-Karte muss Version **0.5.3** anzeigen.
-4. **Auch das Jellyfin-Plugin auf 0.5.3 aktualisieren und Jellyfin neu starten.**
+3. MediaForge neu starten. Die Marshmello-Karte muss Version **0.5.6** anzeigen.
+4. **Auch das Jellyfin-Plugin auf 0.5.6 aktualisieren und Jellyfin neu starten.**
    Es nutzt jetzt `/api/v1/marshmello-connector/`. Die Versionen 0.4.x/0.5.0 des
    Jellyfin-Plugins nutzen weiter die alten API-Adressen und wechseln nicht automatisch.
 5. Gespeicherte Verbindung und Admin-Diagnose prüfen. Die MediaForge-Basis-URL
@@ -132,7 +61,13 @@ Das Projekt besteht aus einem Jellyfin-Plugin und einem MediaForge-Modul.
 
 - Übersicht mit Zählern, Titel-/Benutzer-/Status-/Quellen-/Zeitraumfiltern und Seitennavigation.
 - Mehrfachfreigabe und Mehrfachablehnung mit Ergebnissen pro Anfrage und eigenen Ablehnungsgründen.
-- Benutzerregeln für Freigabemodus, maximale offene Anfragen und die Erlaubnis für Serien-Abos.
+- Eigene Admin-Untertabs **Anfragen** und **Benutzerregeln**. Benutzerregeln legen
+  Freigabemodus, maximale offene Anfragen und die Erlaubnis für Serien-Abos fest.
+- Liste individuell automatisch freigegebener Benutzer; **×** setzt nur den
+  Freigabemodus auf die globale Einstellung zurück, ohne Limit oder Abo-Rechte zu ändern.
+- Roter Freigabezähler am Drei-Striche-Menü und neben **Anfragen**, nur für Admins.
+  Aktualisiert sich bei sichtbarem Fenster alle 30 Sekunden und nach Entscheidungen.
+- Eigene Anfragen und Adminliste stehen von neu nach alt, auch bei laufender Aktualisierung.
 - Getrennte Aktionen für Autosync-Wiederholung, erneute Prüfung fehlender Inhalte
   und Abgleich unklarer Downloadübergaben.
 - Diagnose für Verbindung, Versionen, Modul-Fähigkeiten und API-Berechtigungen.
@@ -167,6 +102,7 @@ Tests/                             Python- und .NET-Sicherheits-/Workflowtests
 scripts/                           Build, Versionspflege und Release-Prüfung
 docs/WORKFLOW.md                    Migration, Wiederherstellung und API-Details
 version.json                       Gemeinsame Versionsinformationen
+changelog.md                       Änderungsverlauf aller Fork-Versionen
 ```
 
 ## Diesen Ordner auf GitHub hochladen
@@ -180,7 +116,7 @@ version.json                       Gemeinsame Versionsinformationen
    Keinen zusätzlichen Unterordner `Mediaforge-Jellyfin-Connector` im Repository anlegen.
 4. Änderungen speichern beziehungsweise committen. Das reine Hochladen des
    Quellcodes veröffentlicht noch keine neue Plugin-Version; der enthaltene
-   Release-Workflow startet erst bei einem gepushten Versionstag wie `v0.5.3`.
+   Release-Workflow startet erst bei einem gepushten Versionstag wie `v0.5.6`.
 
 Der Upload-Ordner enthält Quellcode, Tests und Dokumentation. `.git`, lokale SDKs,
 Caches, `bin` und `obj` sind nicht enthalten. Die ZIP-Installationspakete werden
@@ -256,7 +192,7 @@ Den Schlüssel direkt sichern; er wird nur einmal angezeigt. Weitere Hinweise:
 
 ### 2. Jellyfin-Plugin installieren
 
-Für eine manuelle Installation `MediaForgeRequests_0.5.3.zip` in einen eigenen
+Für eine manuelle Installation `MediaForgeRequests_0.5.6.zip` in einen eigenen
 Pluginordner entpacken, unter Linux beispielsweise:
 
 ```text
@@ -341,8 +277,8 @@ Ergebnis:
 
 ```text
 dist/Jellyfin.Plugin.MediaForge.dll
-dist/MediaForgeRequests_0.5.3.zip
-dist/marshmello_jellyfin_connector_0.5.3.zip
+dist/MediaForgeRequests_0.5.6.zip
+dist/marshmello_jellyfin_connector_0.5.6.zip
 dist/SHA256SUMS.txt
 ```
 
@@ -361,7 +297,7 @@ verwendet; bei einem weiteren Fork kann der Parameter die Adresse überschreiben
 Die Tests und Metadatenprüfung lassen sich separat ausführen:
 
 ```powershell
-.\scripts\validate-release.ps1 -Tag v0.5.3
+.\scripts\validate-release.ps1 -Tag v0.5.6
 dotnet restore Tests/Connector.SecurityTests/Connector.SecurityTests.csproj --locked-mode
 dotnet run --project Tests/Connector.SecurityTests/Connector.SecurityTests.csproj -c Release --no-restore
 python -m pip install --require-hashes -r Tests/requirements-ci.txt
@@ -393,8 +329,8 @@ Erst den geprüften Quellstand committen und pushen. Anschließend kann die Vers
 veröffentlicht werden, sofern der Tag noch nicht existiert:
 
 ```powershell
-git tag -a v0.5.3 -m "MediaForge Requests 0.5.3"
-git push origin v0.5.3
+git tag -a v0.5.6 -m "MediaForge Requests 0.5.6"
+git push origin v0.5.6
 ```
 
 Bestehende veröffentlichte Tags nicht überschreiben. Für eine spätere Version
@@ -424,18 +360,18 @@ einen Jellyfin-Neustart.
 - Das Plugin stellt keine Medien bereit. Nur Quellen und Inhalte verwenden,
   für deren Nutzung und Download die erforderlichen Rechte vorliegen.
 
-## Prüfstatus der Version 0.5.3
+## Prüfung auf dem eigenen Server
 
-Lokal erfolgreich geprüft: **42 Python-Tests**, einschließlich getrennter
-API-Routen bei gleichzeitig registriertem offiziellen Connector, die .NET-Sicherheits- und
-Workflowtests, Release-Build ohne Warnungen, Ruff, JavaScript-Syntax sowie eine
-Browserprüfung der Oberfläche mit simulierten API-Antworten.
+Automatisierte Tests und Oberflächenprüfungen mit simulierten API-Antworten
+ersetzen keinen vollständigen Live-Test mit der eigenen MediaForge-, Jellyfin-
+und Jellix-Konfiguration. Vor produktivem Einsatz insbesondere Providerauflösung,
+Zielordner, Bibliothekszuordnung und das spätere Eintreffen neuer Folgen durch
+den echten Autosync-Dienst prüfen.
 
-Ein vollständiger Live-Test mit MediaForge 1.5 und 1.6, Jellyfin und Jellix steht
-noch aus. Vor produktivem Einsatz insbesondere Providerauflösung, Zielordner,
-Bibliothekszuordnung und das spätere Eintreffen neuer Folgen durch den echten
-Autosync-Dienst prüfen. Das Vorhandensein dieses Quellstands bedeutet nicht,
-dass Version 0.5.3 bereits veröffentlicht oder auf einem Server installiert wurde.
+Die Web-Einbindung muss aktiviert sein (`EnableAllUsers`, standardmäßig aktiv).
+Native Clients ohne Jellyfin-Web erhalten die Menüzähler nicht automatisch.
+Nach Pluginupdates Jellyfin neu starten und Jellyfin-Web neu laden;
+gegebenenfalls den Browser-Cache leeren.
 
 Weitere Details: [Workflow, Migration, Wiederherstellung und API](docs/WORKFLOW.md).
 
