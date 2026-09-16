@@ -128,8 +128,11 @@
   }
   async function open() {
     const old = document.getElementById(MODAL_ID); if (old) old.remove();
-    const overlay = document.createElement('div'); overlay.id = MODAL_ID; overlay.style.cssText = 'position:fixed;inset:0;z-index:999;background:#181818;overflow:auto;'; overlay.innerHTML = '<div style="position:sticky;top:0;z-index:5;display:flex;justify-content:flex-end;padding:.5rem;background:#111"><button type="button" aria-label="Schließen" style="border:0;background:transparent;color:#fff;font-size:2rem;cursor:pointer">×</button></div><div data-content><div style="padding:3rem;text-align:center">Laden…</div></div>';
-    overlay.querySelector('button').onclick = () => overlay.remove(); document.body.appendChild(overlay);
+    const overlay = document.createElement('div'); overlay.id = MODAL_ID; overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#181818;overflow:auto;'; overlay.innerHTML = '<div style="position:sticky;top:0;z-index:5;display:flex;justify-content:flex-end;padding:.5rem;background:#111"><button type="button" aria-label="Schließen" style="border:0;background:transparent;color:#fff;font-size:2rem;cursor:pointer">×</button></div><div data-content><div style="padding:3rem;text-align:center">Laden…</div></div>';
+    const closeOverlay = () => { overlay.remove(); document.removeEventListener('keydown', handleEsc); };
+    const handleEsc = (e) => { if (e.key === 'Escape') closeOverlay(); };
+    overlay.querySelector('button').onclick = closeOverlay; document.body.appendChild(overlay);
+    document.addEventListener('keydown', handleEsc);
     const client = api(); const content = overlay.querySelector('[data-content]');
     try {
       const html = await client.fetch({ url: client.getUrl('MediaForgeRequests/Page'), type: 'GET', dataType: 'text' }); const doc = new DOMParser().parseFromString(html, 'text/html'); const page = doc.querySelector('[data-role="page"]'); content.innerHTML = page ? page.innerHTML : html;
