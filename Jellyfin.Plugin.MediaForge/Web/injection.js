@@ -20,7 +20,7 @@
   }
   function renderBadge() {
     const active = !suspended && !document.hidden && sessionKey && sessionKey === currentSession();
-    document.querySelectorAll('.mainDrawerButton, #' + MENU_ID).forEach(button => {
+    document.querySelectorAll('.mainDrawerButton, #' + MENU_ID + ', #mf-header-btn').forEach(button => {
       let badge = button.querySelector('.mf-pending-badge');
       if (!active || pendingCount < 1) {
         if (badge) badge.remove();
@@ -71,17 +71,47 @@
     }
   }
   function inject() {
-    if (document.getElementById(MENU_ID)) return;
-    const sidebar = document.querySelector('.mainDrawer-scrollContainer, .mainDrawer .scrollContainer'); if (!sidebar || !api()) return;
-    const entry = document.createElement('a'); entry.id = MENU_ID; entry.href = '#'; entry.setAttribute('is', 'emby-linkbutton'); entry.setAttribute('data-itemid', 'mediaforge-requests'); entry.className = 'navMenuOption lnkMediaFolder'; entry.innerHTML = '<span class="material-icons navMenuOptionIcon playlist_add" aria-hidden="true"></span><span class="navMenuOptionText">Anfragen</span>';
-    entry.addEventListener('click', function (event) { event.preventDefault(); event.stopPropagation(); const backdrop = document.querySelector('.mainDrawer-backdrop'); if (backdrop) backdrop.click(); open(); });
-    const custom = sidebar.querySelector('.customMenuOptions');
-    const libraries = sidebar.querySelector('.libraryMenuOptions');
-    const admin = sidebar.querySelector('.adminMenuOptions');
-    if (custom) custom.appendChild(entry);
-    else if (libraries) sidebar.insertBefore(entry, libraries);
-    else if (admin) sidebar.insertBefore(entry, admin);
-    else sidebar.appendChild(entry);
+    if (!api()) return;
+    if (!document.getElementById(MENU_ID)) {
+      const sidebar = document.querySelector('.mainDrawer-scrollContainer, .mainDrawer .scrollContainer');
+      if (sidebar) {
+        const entry = document.createElement('a'); entry.id = MENU_ID; entry.href = '#'; entry.setAttribute('is', 'emby-linkbutton'); entry.setAttribute('data-itemid', 'mediaforge-requests'); entry.className = 'mf-requests-btn navMenuOption lnkMediaFolder'; entry.innerHTML = '<span class="material-icons navMenuOptionIcon playlist_add" aria-hidden="true"></span><span class="navMenuOptionText">Anfragen</span>';
+        entry.addEventListener('click', function (event) { event.preventDefault(); event.stopPropagation(); const backdrop = document.querySelector('.mainDrawer-backdrop'); if (backdrop) backdrop.click(); open(); });
+        const custom = sidebar.querySelector('.customMenuOptions');
+        const libraries = sidebar.querySelector('.libraryMenuOptions');
+        const admin = sidebar.querySelector('.adminMenuOptions');
+        if (custom) custom.appendChild(entry);
+        else if (libraries) sidebar.insertBefore(entry, libraries);
+        else if (admin) sidebar.insertBefore(entry, admin);
+        else sidebar.appendChild(entry);
+      }
+    }
+    if (!document.getElementById('mf-header-btn')) {
+      const headerLinks = Array.from(document.querySelectorAll('.headerTop a, .headerTabs a, .app-bar a, .viewTabs a'));
+      const favoriteLink = headerLinks.find(a => a.textContent.includes('Favoriten') || a.textContent.includes('Favorites') || (a.getAttribute('href') && a.getAttribute('href').includes('favorites')));
+      if (favoriteLink && favoriteLink.parentElement) {
+        const entry = document.createElement('a');
+        entry.id = 'mf-header-btn';
+        entry.href = '#';
+        entry.className = favoriteLink.className + ' mf-requests-btn';
+        if (favoriteLink.hasAttribute('is')) entry.setAttribute('is', favoriteLink.getAttribute('is'));
+        const icon = favoriteLink.querySelector('.material-icons, i, svg, img');
+        if (icon) {
+           const iconClone = icon.cloneNode(true);
+           if (iconClone.classList && iconClone.classList.contains('material-icons')) iconClone.textContent = 'playlist_add';
+           entry.appendChild(iconClone);
+        } else {
+           entry.innerHTML = '<span class="material-icons playlist_add" aria-hidden="true" style="margin-right:0.4em"></span>';
+        }
+        const text = document.createElement('span');
+        text.textContent = 'Anfragen';
+        const textSpans = Array.from(favoriteLink.querySelectorAll('span')).filter(s => !s.classList.contains('material-icons') && s.getAttribute('aria-hidden') !== 'true');
+        if (textSpans.length > 0) text.className = textSpans[0].className;
+        entry.appendChild(text);
+        entry.addEventListener('click', function (event) { event.preventDefault(); event.stopPropagation(); open(); });
+        favoriteLink.parentElement.insertBefore(entry, favoriteLink.nextSibling);
+      }
+    }
   }
   async function open() {
     const old = document.getElementById(MODAL_ID); if (old) old.remove();
@@ -97,7 +127,7 @@
     const style = document.createElement('style');
     style.textContent = '.mainDrawerButton.mf-pending-anchor{position:relative;overflow:visible}.mf-pending-badge{position:absolute;top:1px;right:0;display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 3px;box-sizing:border-box;border-radius:999px;background:#c62828;color:#fff;font:700 11px/18px system-ui,sans-serif;pointer-events:none;z-index:1}';
     document.head.appendChild(style);
-    style.textContent += '#' + MENU_ID + ' .mf-pending-badge{position:static;flex-shrink:0;margin-inline-start:.5em;vertical-align:middle}';
+    style.textContent += '#' + MENU_ID + ' .mf-pending-badge, #mf-header-btn .mf-pending-badge{position:static;flex-shrink:0;margin-inline-start:.5em;vertical-align:middle}';
     const observer = new MutationObserver(() => { inject(); if (checkSession()) refreshCount(); renderBadge(); });
     observer.observe(document.body, { childList: true, subtree: true });
     const refresh = () => { checkSession(); renderBadge(); refreshCount(); };
