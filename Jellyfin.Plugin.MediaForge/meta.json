@@ -7,8 +7,9 @@
   "overview": "MediaForge search and download requests for all Jellyfin users",
   "owner": "MediaForge Jellyfin Connector contributors",
   "targetAbi": "12.1.0.0",
-  "timestamp": "2026-09-16T00:00:00Z",
-  "version": "0.6.0.0",
+  "timestamp": "20.6.19-16T00:00:00Z",
+  "version": "0.6.1.0",
   "status": "Active",
   "autoUpdate": true
 }
+
