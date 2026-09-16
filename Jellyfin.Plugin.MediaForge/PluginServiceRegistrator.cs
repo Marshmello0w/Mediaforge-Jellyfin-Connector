@@ -14,7 +14,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
             .AddHttpClient<MediaForgeClient>(client =>
             {
                 client.Timeout = TimeSpan.FromSeconds(90);
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-MediaForge-Requests/0.6.1");
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-MediaForge-Requests/0.6.2");
             })
             .RedactLoggedHeaders(["X-Api-Key"])
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -40,4 +40,5 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
             ?? throw new InvalidOperationException("MediaForge secret store is unavailable."));
     }
 }
+
 

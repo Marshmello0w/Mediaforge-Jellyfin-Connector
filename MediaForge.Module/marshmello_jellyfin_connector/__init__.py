@@ -21,7 +21,7 @@ MODULE_DESCRIPTION_DE = (
 )
 MODULE_AUTHOR = "MediaForge Jellyfin Connector contributors"
 MODULE_ENABLED_DEFAULT = True
-MODULE_VERSION = "0.6.1"
+MODULE_VERSION = "0.6.2"
 MODULE_API_VERSION = 1
 MODULE_MIN_APP_VERSION = "1.5.0"
 MODULE_MAX_APP_VERSION = "1.6.999"
@@ -71,4 +71,5 @@ def register(app) -> None:
     if "blueprint" in inspect.signature(register_thirdparty).parameters:
         registration["blueprint"] = "marshmello_jellyfin_connector"
     register_thirdparty(**registration)
+
 
