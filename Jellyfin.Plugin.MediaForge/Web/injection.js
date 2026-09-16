@@ -87,7 +87,7 @@
       }
     }
     if (!document.getElementById('mf-header-btn')) {
-      const headerLinks = Array.from(document.querySelectorAll('.headerTop a, .headerTop button, .headerTabs a, .headerTabs button, .app-bar a, .app-bar button, .viewTabs a, .viewTabs button, .headerButton, .emby-tab-button'));
+      const headerLinks = Array.from(document.querySelectorAll('header a, header button, .MuiAppBar-root a, .MuiAppBar-root button, .headerTop a, .headerTop button, .headerTabs a, .headerTabs button, .app-bar a, .app-bar button, .viewTabs a, .viewTabs button, .headerButton, .emby-tab-button'));
       const favoriteLink = headerLinks.find(el => (el.textContent && (el.textContent.includes('Favoriten') || el.textContent.includes('Favorites'))) || (el.getAttribute('href') && el.getAttribute('href').includes('favorites')));
       if (favoriteLink && favoriteLink.parentElement) {
         const entry = document.createElement(favoriteLink.tagName.toLowerCase());
@@ -96,19 +96,31 @@
         else entry.type = 'button';
         entry.className = favoriteLink.className + ' mf-requests-btn';
         if (favoriteLink.hasAttribute('is')) entry.setAttribute('is', favoriteLink.getAttribute('is'));
-        const icon = favoriteLink.querySelector('.material-icons, i, svg, img');
-        if (icon) {
-           const iconClone = icon.cloneNode(true);
-           if (iconClone.classList && iconClone.classList.contains('material-icons')) iconClone.textContent = 'playlist_add';
-           entry.appendChild(iconClone);
-        } else {
-           entry.innerHTML = '<span class="material-icons playlist_add" aria-hidden="true" style="margin-right:0.4em"></span>';
+        
+        // Clone the original link's contents but replace text and icons
+        entry.innerHTML = favoriteLink.innerHTML;
+        
+        // Replace text node containing 'Favoriten' with 'Anfragen'
+        const treeWalker = document.createTreeWalker(entry, NodeFilter.SHOW_TEXT);
+        let textNode;
+        while ((textNode = treeWalker.nextNode())) {
+            if (textNode.nodeValue.includes('Favoriten') || textNode.nodeValue.includes('Favorites')) {
+                textNode.nodeValue = textNode.nodeValue.replace(/Favoriten|Favorites/g, 'Anfragen');
+            }
         }
-        const text = document.createElement('span');
-        text.textContent = 'Anfragen';
-        const textSpans = Array.from(favoriteLink.querySelectorAll('span')).filter(s => !s.classList.contains('material-icons') && s.getAttribute('aria-hidden') !== 'true');
-        if (textSpans.length > 0) text.className = textSpans[0].className;
-        entry.appendChild(text);
+        
+        // Fix the icon
+        const icon = entry.querySelector('.material-icons');
+        if (icon) {
+            icon.textContent = 'playlist_add';
+        } else {
+            const svgIcon = entry.querySelector('svg');
+            if (svgIcon) {
+                // Replace SVG path with playlist_add icon
+                svgIcon.innerHTML = '<path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"></path>';
+            }
+        }
+
         entry.addEventListener('click', function (event) { event.preventDefault(); event.stopPropagation(); open(); });
         favoriteLink.parentElement.insertBefore(entry, favoriteLink.nextSibling);
       }
