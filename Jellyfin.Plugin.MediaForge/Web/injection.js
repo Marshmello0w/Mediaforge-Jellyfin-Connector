@@ -87,12 +87,13 @@
       }
     }
     if (!document.getElementById('mf-header-btn')) {
-      const headerLinks = Array.from(document.querySelectorAll('.headerTop a, .headerTabs a, .app-bar a, .viewTabs a'));
-      const favoriteLink = headerLinks.find(a => a.textContent.includes('Favoriten') || a.textContent.includes('Favorites') || (a.getAttribute('href') && a.getAttribute('href').includes('favorites')));
+      const headerLinks = Array.from(document.querySelectorAll('.headerTop a, .headerTop button, .headerTabs a, .headerTabs button, .app-bar a, .app-bar button, .viewTabs a, .viewTabs button, .headerButton, .emby-tab-button'));
+      const favoriteLink = headerLinks.find(el => (el.textContent && (el.textContent.includes('Favoriten') || el.textContent.includes('Favorites'))) || (el.getAttribute('href') && el.getAttribute('href').includes('favorites')));
       if (favoriteLink && favoriteLink.parentElement) {
-        const entry = document.createElement('a');
+        const entry = document.createElement(favoriteLink.tagName.toLowerCase());
         entry.id = 'mf-header-btn';
-        entry.href = '#';
+        if (entry.tagName === 'a') entry.href = '#';
+        else entry.type = 'button';
         entry.className = favoriteLink.className + ' mf-requests-btn';
         if (favoriteLink.hasAttribute('is')) entry.setAttribute('is', favoriteLink.getAttribute('is'));
         const icon = favoriteLink.querySelector('.material-icons, i, svg, img');
