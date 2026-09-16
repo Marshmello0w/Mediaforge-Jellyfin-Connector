@@ -31,18 +31,6 @@
         "resolved": "13.0.4",
         "contentHash": "pdgNNMai3zv51W5aq268sujXUyx7SNdE2bj1wZcWjAQrKMFZV260lbqYop1d2GM67JI1huLRwxo9ZqnfF/lC6A=="
       },
-      "System.Text.Encodings.Web": {
-        "type": "Direct",
-        "requested": "[9.0.19, )",
-        "resolved": "9.0.19",
-        "contentHash": "IfQdKDo8uQ1G0Jfd5lBYjsWoSV1Hq7joOD86B4zgUBPus/M/4ytHbq7OjgUrBrJcDOHDlFnjtuBbMMb6y24kLA=="
-      },
-      "System.Text.Json": {
-        "type": "Direct",
-        "requested": "[9.0.19, )",
-        "resolved": "9.0.19",
-        "contentHash": "DjVVcIY/dS/rjb0b42nciHjUc0voQfUtrTos+wC0sgdx0VemTpYhx1jdeHowwFghygJ6QdaytcMHwA8jZ6MHFg=="
-      },
       "Diacritics": {
         "type": "Transitive",
         "resolved": "4.1.8",
