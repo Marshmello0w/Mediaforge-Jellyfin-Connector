@@ -87,7 +87,17 @@
       }
     }
     const navLinks = Array.from(document.querySelectorAll('header a, header button, footer a, footer button, nav a, nav button, .MuiAppBar-root a, .MuiAppBar-root button, .MuiBottomNavigation-root a, .MuiBottomNavigation-root button, .MuiBottomNavigationAction-root, .headerTop a, .headerTop button, .headerTabs a, .headerTabs button, .app-bar a, .app-bar button, .viewTabs a, .viewTabs button, .headerButton, .emby-tab-button, .bottom-nav a, .bottom-nav button'));
-    const favoriteLinks = navLinks.filter(el => (el.textContent && (el.textContent.includes('Favoriten') || el.textContent.includes('Favorites'))) || (el.getAttribute('href') && el.getAttribute('href').includes('favorites')));
+    const favoriteLinks = navLinks.filter(el => {
+      const text = el.textContent || '';
+      if (text.includes('Favoriten') || text.includes('Favorites')) return true;
+      const href = el.getAttribute('href') || '';
+      if (href.includes('favorites')) return true;
+      const icon = el.querySelector('.md-icon, .material-icons');
+      if (icon && (icon.textContent.includes('favorite') || icon.textContent.includes('star'))) return true;
+      const svg = el.querySelector('svg[data-testid="FavoriteIcon"], svg[data-testid="FavoriteBorderIcon"]');
+      if (svg) return true;
+      return false;
+    });
     
     favoriteLinks.forEach(favoriteLink => {
       if (favoriteLink && favoriteLink.parentElement && !favoriteLink.parentElement.querySelector('.mf-requests-btn-nav')) {
