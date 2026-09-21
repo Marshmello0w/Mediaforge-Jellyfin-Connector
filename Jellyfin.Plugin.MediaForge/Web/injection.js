@@ -86,7 +86,9 @@
         else sidebar.appendChild(entry);
       }
     }
-    const navLinks = Array.from(document.querySelectorAll('header a, header button, footer a, footer button, nav a, nav button, .MuiAppBar-root a, .MuiAppBar-root button, .MuiBottomNavigation-root a, .MuiBottomNavigation-root button, .MuiBottomNavigationAction-root, .headerTop a, .headerTop button, .headerTabs a, .headerTabs button, .app-bar a, .app-bar button, .viewTabs a, .viewTabs button, .headerButton, .emby-tab-button, .bottom-nav a, .bottom-nav button'));
+    const navParents = ['header', 'footer', 'nav', 'aside', '.MuiAppBar-root', '.MuiBottomNavigation-root', '.MuiDrawer-paper', '.MuiDrawer-root', '.mainDrawer', '.app-bar', '.bottom-nav'];
+    const navSelectors = navParents.map(parent => `${parent} a, ${parent} button, ${parent} [role="button"], ${parent} [role="menuitem"]`).join(', ');
+    const navLinks = Array.from(document.querySelectorAll(`${navSelectors}, .MuiBottomNavigationAction-root, .headerButton, .emby-tab-button`));
     const favoriteLinks = navLinks.filter(el => {
       const text = el.textContent || '';
       if (text.includes('Favoriten') || text.includes('Favorites')) return true;
@@ -131,7 +133,13 @@
             }
         }
 
-        entry.addEventListener('click', function (event) { event.preventDefault(); event.stopPropagation(); open(); });
+        entry.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            const backdrop = document.querySelector('.mainDrawer-backdrop, .MuiDrawer-root .MuiBackdrop-root, .MuiModal-backdrop');
+            if (backdrop) backdrop.click();
+            open();
+        });
         favoriteLink.parentElement.insertBefore(entry, favoriteLink.nextSibling);
       }
     });

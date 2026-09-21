@@ -14,7 +14,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
             .AddHttpClient<MediaForgeClient>(client =>
             {
                 client.Timeout = TimeSpan.FromSeconds(90);
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-MediaForge-Requests/0.6.7");
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Jellyfin-MediaForge-Requests/0.6.8");
             })
             .RedactLoggedHeaders(["X-Api-Key"])
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
