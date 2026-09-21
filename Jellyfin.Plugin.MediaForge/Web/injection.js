@@ -102,15 +102,24 @@
     });
     
     favoriteLinks.forEach(favoriteLink => {
-      if (favoriteLink && favoriteLink.parentElement && !favoriteLink.parentElement.querySelector('.mf-requests-btn-nav')) {
-        const entry = document.createElement(favoriteLink.tagName.toLowerCase());
-        if (entry.tagName === 'a') entry.href = '#';
-        else entry.type = 'button';
-        entry.className = favoriteLink.className + ' mf-requests-btn mf-requests-btn-nav';
-        if (favoriteLink.hasAttribute('is')) entry.setAttribute('is', favoriteLink.getAttribute('is'));
+      // Find the outermost logical container for this button to duplicate the whole row
+      let sourceNode = favoriteLink;
+      const wrapper = favoriteLink.closest('li, .MuiListItem-root, .menuOption, .navMenuOption, .emby-tab-button');
+      if (wrapper && wrapper.parentElement) {
+          sourceNode = wrapper;
+      }
+
+      if (sourceNode.parentElement && !sourceNode.parentElement.querySelector('.mf-requests-btn-nav')) {
+        const entry = sourceNode.cloneNode(true);
+        entry.id = ''; // clear id
         
-        // Clone the original link's contents but replace text and icons
-        entry.innerHTML = favoriteLink.innerHTML;
+        // Ensure we add our identifier class to the new node
+        entry.classList.add('mf-requests-btn-nav');
+        
+        // Find the actual clickable link/button inside the clone (or the clone itself)
+        const clickable = entry.matches('a, button, [role="button"], [role="menuitem"]') ? entry : (entry.querySelector('a, button, [role="button"], [role="menuitem"]') || entry);
+        if (clickable.tagName.toLowerCase() === 'a') clickable.href = '#';
+        else if (clickable.tagName.toLowerCase() === 'button') clickable.type = 'button';
         
         // Replace text node containing 'Favoriten' with 'Anfragen'
         const treeWalker = document.createTreeWalker(entry, NodeFilter.SHOW_TEXT);
@@ -122,7 +131,7 @@
         }
         
         // Fix the icon
-        const icon = entry.querySelector('.material-icons');
+        const icon = entry.querySelector('.md-icon, .material-icons');
         if (icon) {
             icon.textContent = 'playlist_add';
         } else {
@@ -140,7 +149,7 @@
             if (backdrop) backdrop.click();
             open();
         });
-        favoriteLink.parentElement.insertBefore(entry, favoriteLink.nextSibling);
+        sourceNode.parentElement.insertBefore(entry, sourceNode.nextSibling);
       }
     });
   }
