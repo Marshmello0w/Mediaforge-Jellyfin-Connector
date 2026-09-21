@@ -20,7 +20,7 @@
   }
   function renderBadge() {
     const active = !suspended && !document.hidden && sessionKey && sessionKey === currentSession();
-    document.querySelectorAll('.mainDrawerButton, #' + MENU_ID + ', #mf-header-btn').forEach(button => {
+    document.querySelectorAll('.mainDrawerButton, #' + MENU_ID + ', .mf-requests-btn-nav').forEach(button => {
       let badge = button.querySelector('.mf-pending-badge');
       if (!active || pendingCount < 1) {
         if (badge) badge.remove();
@@ -86,15 +86,15 @@
         else sidebar.appendChild(entry);
       }
     }
-    if (!document.getElementById('mf-header-btn')) {
-      const headerLinks = Array.from(document.querySelectorAll('header a, header button, .MuiAppBar-root a, .MuiAppBar-root button, .headerTop a, .headerTop button, .headerTabs a, .headerTabs button, .app-bar a, .app-bar button, .viewTabs a, .viewTabs button, .headerButton, .emby-tab-button'));
-      const favoriteLink = headerLinks.find(el => (el.textContent && (el.textContent.includes('Favoriten') || el.textContent.includes('Favorites'))) || (el.getAttribute('href') && el.getAttribute('href').includes('favorites')));
-      if (favoriteLink && favoriteLink.parentElement) {
+    const navLinks = Array.from(document.querySelectorAll('header a, header button, footer a, footer button, nav a, nav button, .MuiAppBar-root a, .MuiAppBar-root button, .MuiBottomNavigation-root a, .MuiBottomNavigation-root button, .MuiBottomNavigationAction-root, .headerTop a, .headerTop button, .headerTabs a, .headerTabs button, .app-bar a, .app-bar button, .viewTabs a, .viewTabs button, .headerButton, .emby-tab-button, .bottom-nav a, .bottom-nav button'));
+    const favoriteLinks = navLinks.filter(el => (el.textContent && (el.textContent.includes('Favoriten') || el.textContent.includes('Favorites'))) || (el.getAttribute('href') && el.getAttribute('href').includes('favorites')));
+    
+    favoriteLinks.forEach(favoriteLink => {
+      if (favoriteLink && favoriteLink.parentElement && !favoriteLink.parentElement.querySelector('.mf-requests-btn-nav')) {
         const entry = document.createElement(favoriteLink.tagName.toLowerCase());
-        entry.id = 'mf-header-btn';
         if (entry.tagName === 'a') entry.href = '#';
         else entry.type = 'button';
-        entry.className = favoriteLink.className + ' mf-requests-btn';
+        entry.className = favoriteLink.className + ' mf-requests-btn mf-requests-btn-nav';
         if (favoriteLink.hasAttribute('is')) entry.setAttribute('is', favoriteLink.getAttribute('is'));
         
         // Clone the original link's contents but replace text and icons
@@ -124,7 +124,7 @@
         entry.addEventListener('click', function (event) { event.preventDefault(); event.stopPropagation(); open(); });
         favoriteLink.parentElement.insertBefore(entry, favoriteLink.nextSibling);
       }
-    }
+    });
   }
   async function open() {
     const old = document.getElementById(MODAL_ID); if (old) old.remove();
@@ -143,7 +143,7 @@
     const style = document.createElement('style');
     style.textContent = '.mainDrawerButton.mf-pending-anchor{position:relative;overflow:visible}.mf-pending-badge{position:absolute;top:1px;right:0;display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 3px;box-sizing:border-box;border-radius:999px;background:#c62828;color:#fff;font:700 11px/18px system-ui,sans-serif;pointer-events:none;z-index:1}';
     document.head.appendChild(style);
-    style.textContent += '#' + MENU_ID + ' .mf-pending-badge, #mf-header-btn .mf-pending-badge{position:static;flex-shrink:0;margin-inline-start:.5em;vertical-align:middle}';
+    style.textContent += '#' + MENU_ID + ' .mf-pending-badge, .mf-requests-btn-nav .mf-pending-badge{position:static;flex-shrink:0;margin-inline-start:.5em;vertical-align:middle}';
     const observer = new MutationObserver(() => { inject(); if (checkSession()) refreshCount(); renderBadge(); });
     observer.observe(document.body, { childList: true, subtree: true });
     const refresh = () => { checkSession(); renderBadge(); refreshCount(); };
