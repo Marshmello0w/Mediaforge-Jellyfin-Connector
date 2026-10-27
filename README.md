@@ -4,7 +4,7 @@ Filme und Serien direkt in Jellyfin suchen und anfragen. Administratoren können
 Anfragen freigeben oder automatisch freigeben lassen. MediaForge übernimmt die
 Downloads; neu freigegebene Serien werden zusätzlich dauerhaft in Autosync aufgenommen.
 
-**Version: 0.6.0 · Jellyfin ab 12.1 · MediaForge 1.5.x / 1.6.x**
+**Version: 0.7.0 · Jellyfin ab 12.1 · MediaForge 1.5.x / 1.6.x / 1.7.x**
 
 [Änderungsverlauf aller Fork-Versionen](changelog.md)
 
@@ -130,7 +130,7 @@ damit MediaForge es direkt über den Modulkatalog installieren kann.
 ## Voraussetzungen
 
 - Jellyfin 12.1 oder neuer; Ziel-ABI dieser Version: `12.1.0.0`.
-- MediaForge 1.5.x oder 1.6.x, vom Jellyfin-Server erreichbar.
+- MediaForge 1.5.x, 1.6.x oder 1.7.x, vom Jellyfin-Server erreichbar.
 - Gemeinsamer Zugriff auf die heruntergeladenen Mediendateien.
 - Für eigene Builds: .NET 9 SDK und PowerShell; für Python-Tests zusätzlich Python 3.13.
 

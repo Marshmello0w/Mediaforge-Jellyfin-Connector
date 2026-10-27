@@ -6,6 +6,13 @@
 für das Projekt; das Jellyfin-Plugin verwendet zusätzlich eine vierte Stelle,
 zum Beispiel `0.5.6.0`. Die Historie dieser Variante beginnt mit 0.5.0.
 
+## 0.7.0 – MediaForge 1.7.x Kompatibilität
+
+- **Kompatibilität erweitert:** Unterstützung für MediaForge 1.7.x (`MODULE_MAX_APP_VERSION = "1.7.999"`). Behebt die Meldung `requires MediaForge <= 1.6.999 (running 1.7.0)`.
+- **Modul-Store aktualisiert:** Modulkatalog (`index.json`, `index-all.json`) und das Installationspaket `marshmello_jellyfin_connector-0.7.0.mfmod` für Version 0.7.0 neu generiert.
+
+**Update:** In MediaForge den zusätzlichen Store aktualisieren und das Modul **Jellyfin Connector – Marshmello** aktualisieren, danach MediaForge neu starten.
+
 ## 0.6.0 – Jellyfin 12.1 und File Transformation 3.0.1.0 Support
 
 - **Kompatibilitäts-Update:** Unterstützung für Jellyfin 12.1.0 hinzugefügt. Die internen Abhängigkeiten (Jellyfin.Controller und Jellyfin.Model) wurden auf Version 12.1.0 aktualisiert.

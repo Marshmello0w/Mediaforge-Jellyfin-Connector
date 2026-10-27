@@ -1,4 +1,4 @@
-param([string]$RepositorySlug = $env:GITHUB_REPOSITORY)
+﻿param([string]$RepositorySlug = $env:GITHUB_REPOSITORY)
 
 $ErrorActionPreference = "Stop"
 if ([string]::IsNullOrWhiteSpace($RepositorySlug)) {

@@ -692,7 +692,7 @@ class ConnectorRegistrationTests(unittest.TestCase):
         module.register(app)
 
         self.assertEqual("1.5.0", module.MODULE_MIN_APP_VERSION)
-        self.assertEqual("1.6.999", module.MODULE_MAX_APP_VERSION)
+        self.assertEqual("1.7.999", module.MODULE_MAX_APP_VERSION)
         self.assertEqual(1, len(app.blueprints))
         self.assertEqual(1, len(registrations))
         self.assertEqual("marshmello_jellyfin_connector", registrations[0]["item_id"])

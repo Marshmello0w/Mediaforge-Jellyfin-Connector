@@ -1,30 +1,32 @@
 {
-  "store_api": 1,
-  "name": "MediaForge Jellyfin Connector",
-  "modules": [
-    {
-      "id": "marshmello_jellyfin_connector",
-      "folder": "marshmello_jellyfin_connector",
-      "type": "module",
-      "name": "Jellyfin Connector - Marshmello",
-      "version": "0.5.7",
-      "author": "MediaForge Jellyfin Connector contributors",
-      "trust": "unverified",
-      "description": {
-        "de": "Jellyfin-Anfragen, sichere Downloadübergaben und Autosync nach Serienfreigabe.",
-        "en": "Jellyfin requests, durable download handoffs and AutoSync after series approval."
-      },
-      "api_version": 1,
-      "min_app_version": "1.5.0",
-      "max_app_version": "1.6.999",
-      "requirements": [],
-      "homepage": "https://github.com/Marshmello0w/Mediaforge-Jellyfin-Connector",
-      "repo_url": "https://github.com/Marshmello0w/Mediaforge-Jellyfin-Connector",
-      "source_url": "https://github.com/Marshmello0w/Mediaforge-Jellyfin-Connector/tree/main/MediaForge.Module/marshmello_jellyfin_connector",
-      "license": "GPL-3.0-or-later",
-      "download_url": "packages/marshmello_jellyfin_connector-0.5.7.mfmod",
-      "sha256": "0e503193436a29fb02b4470b7c251a8428c5293fffdf4bf6cb8d1d064c691bb4",
-      "size": 10879
-    }
-  ]
+    "store_api":  1,
+    "name":  "MediaForge Jellyfin Connector",
+    "modules":  [
+                    {
+                        "id":  "marshmello_jellyfin_connector",
+                        "folder":  "marshmello_jellyfin_connector",
+                        "type":  "module",
+                        "name":  "Jellyfin Connector - Marshmello",
+                        "version":  "0.7.0",
+                        "author":  "MediaForge Jellyfin Connector contributors",
+                        "trust":  "unverified",
+                        "description":  {
+                                            "de":  "Jellyfin-Anfragen, sichere Downloadübergaben und Autosync nach Serienfreigabe.",
+                                            "en":  "Jellyfin requests, durable download handoffs and AutoSync after series approval."
+                                        },
+                        "api_version":  1,
+                        "min_app_version":  "1.5.0",
+                        "max_app_version":  "1.7.999",
+                        "requirements":  [
+
+                                         ],
+                        "homepage":  "https://github.com/Marshmello0w/Mediaforge-Jellyfin-Connector",
+                        "repo_url":  "https://github.com/Marshmello0w/Mediaforge-Jellyfin-Connector",
+                        "source_url":  "https://github.com/Marshmello0w/Mediaforge-Jellyfin-Connector/tree/main/MediaForge.Module/marshmello_jellyfin_connector",
+                        "license":  "GPL-3.0-or-later",
+                        "download_url":  "packages/marshmello_jellyfin_connector-0.7.0.mfmod",
+                        "sha256":  "a24a41cb89996560fa5a1d41836b6ba761dc424ac280d2ca8190153e0d7afafb",
+                        "size":  10891
+                    }
+                ]
 }

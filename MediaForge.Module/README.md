@@ -57,7 +57,7 @@ If the module card is missing, verify the exact directory layout:
 ```
 
 There must not be a second nested `marshmello_jellyfin_connector` directory.
-After correcting a manual installation, restart MediaForge. MediaForge 1.6 can
+After correcting a manual installation, restart MediaForge. MediaForge 1.6+ can
 also apply the registration safely through the Module Manager's refresh
 function; MediaForge 1.5 requires a restart. The MediaForge log will report an
 import or compatibility error if registration still fails.

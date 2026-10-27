@@ -21,10 +21,10 @@ MODULE_DESCRIPTION_DE = (
 )
 MODULE_AUTHOR = "MediaForge Jellyfin Connector contributors"
 MODULE_ENABLED_DEFAULT = True
-MODULE_VERSION = "0.6.9"
+MODULE_VERSION = "0.7.0"
 MODULE_API_VERSION = 1
 MODULE_MIN_APP_VERSION = "1.5.0"
-MODULE_MAX_APP_VERSION = "1.6.999"
+MODULE_MAX_APP_VERSION = "1.7.999"
 MODULE_REQUIREMENTS = ()
 MODULE_ID = "marshmello_jellyfin_connector"
 MODULE_HOMEPAGE = "https://github.com/Marshmello0w/Mediaforge-Jellyfin-Connector"

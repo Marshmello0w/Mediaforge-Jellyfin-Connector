@@ -50,4 +50,4 @@ damit Prüfsumme und Version stimmen. Erzeugte Dateien dieses Ordners werden
 absichtlich im Repository gespeichert, damit der direkte Upload funktioniert.
 
 Eine Versionsnummer macht ein Modul weder signiert noch mit einer neueren
-MediaForge-Hauptversion kompatibel. Die deklarierte Grenze bleibt 1.5.x–1.6.x.
+MediaForge-Hauptversion kompatibel. Die deklarierte Grenze bleibt 1.5.x–1.7.x.
